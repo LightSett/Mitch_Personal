@@ -1,0 +1,10 @@
+var EQs = FeatureSetByName($datastore,'Equipment',['ObjectID','OUTPUT_PORTS'],true)
+
+
+var EQOID = Number(Replace($feature.ASSOC_EQUIPMENT,'"',''))
+
+var Ports = null
+var EQ = First(Filter(EQs,"ObjectID = "+EQOID+""))
+if (EQ!=null) {Ports = EQ.OUTPUT_PORTS}
+
+return Ports

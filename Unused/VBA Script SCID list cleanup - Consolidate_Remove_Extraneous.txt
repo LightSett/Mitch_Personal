@@ -1,0 +1,137 @@
+' Script purpose: take all SCID data output from catapult and merge it into one consolidated sheet. Then Clean the useless stuff out.
+' Setup: Add sheet to beginning of workbook and rename it "Consolidated"
+' 		 Delete everything before "Sub RunAllScripts()" (from here up) before running
+
+Sub RunAllScripts()
+    ' Call ConsolidateSCIDSheets script
+    Call ConsolidateSCIDSheets
+   
+    ' Pause for 500 milliseconds
+    Application.Wait Now + TimeValue("00:00:01") ' 1 second
+   
+    ' Call RemovePPLCompanyRows script
+    Call RemovePPLCompanyRows
+   
+    ' Pause for 500 milliseconds
+    Application.Wait Now + TimeValue("00:00:01") ' 1 second
+   
+    ' Call RemoveRowsWithConditions script
+    Call RemoveRowsWithConditions
+End Sub
+
+
+
+Sub ConsolidateSCIDSheets()
+    Dim ws As Worksheet
+    Dim destWs As Worksheet
+    Dim lastRow As Long
+    Dim destLastRow As Long
+    Dim destLastCol As Long
+    Dim rowOffset As Long
+    Dim col As Long
+    Dim spaceBetweenSets As Long
+   
+    ' Set the destination sheet where data will be consolidated
+    Set destWs = ThisWorkbook.Sheets("Consolidated")
+   
+    ' Clear the destination sheet before consolidating data
+    destWs.Cells.Clear
+   
+    ' Initialize variables
+    destLastRow = 1
+    rowOffset = 0
+    spaceBetweenSets = 1 ' Number of rows between sets
+   
+    ' Loop through all sheets in the workbook
+    For Each ws In ThisWorkbook.Sheets
+        ' Check if the sheet name contains "SCID"
+        If InStr(1, ws.Name, "SCID", vbTextCompare) > 0 Then
+            ' Find the last row in the source sheet
+            lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).row
+            destLastCol = 16 ' Column P (since A:P)
+           
+            ' Copy data from source sheet to destination sheet
+            For col = 1 To destLastCol
+                destWs.Cells(destLastRow + rowOffset, col).Resize(lastRow + spaceBetweenSets, 1).Value = ws.Cells(1, col).Resize(lastRow + spaceBetweenSets, 1).Value
+            Next col
+           
+            ' Update destination row offset
+            rowOffset = rowOffset + lastRow + spaceBetweenSets
+        End If
+    Next ws
+End Sub
+
+Sub RemovePPLCompanyRows()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim rng As Range
+    Dim cell As Range
+    Dim rowsToDelete As Range
+   
+    ' Set the worksheet to "Consolidated"
+    Set ws = ThisWorkbook.Sheets("Consolidated")
+   
+    ' Find the last used row in column A of the sheet
+    lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).row
+   
+    ' Loop through each row
+    For row = lastRow To 1 Step -1
+        Set cell = ws.Cells(row, 1)
+        If InStr(1, cell.Value, "PPL Company", vbTextCompare) > 0 Then
+            If rowsToDelete Is Nothing Then
+                Set rowsToDelete = cell.EntireRow
+            Else
+                Set rowsToDelete = Union(rowsToDelete, cell.EntireRow)
+            End If
+        End If
+    Next row
+   
+        ' Loop through each row
+    For row = lastRow To 1 Step -1
+        Set cell = ws.Cells(row, 1)
+        If InStr(1, cell.Value, "City of Scranton", vbTextCompare) > 0 Then
+            If rowsToDelete Is Nothing Then
+                Set rowsToDelete = cell.EntireRow
+            Else
+                Set rowsToDelete = Union(rowsToDelete, cell.EntireRow)
+            End If
+        End If
+    Next row
+   
+    ' Delete the identified rows
+    If Not rowsToDelete Is Nothing Then
+        rowsToDelete.Delete
+    End If
+End Sub
+
+
+Sub RemoveRowsWithConditions()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim rng As Range
+    Dim cell As Range
+    Dim rowsToDelete As Range
+   
+    ' Set the worksheet to "Consolidated"
+    Set ws = ThisWorkbook.Sheets("Consolidated")
+   
+    ' Find the last used row in column A of the sheet
+    lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).row
+   
+    ' Loop through each row
+    For row = lastRow To 1 Step -1
+        Set cell = ws.Cells(row, 1)
+        If cell.Value = "" And (cell.Offset(0, 1).Value Like "*insulator*" Or cell.Offset(0, 1).Value Like "*arrestor*" Or cell.Offset(0, 1).Value Like "*transformer*" Or cell.Offset(0, 1).Value Like "*Pole Top*" Or cell.Offset(0, 1).Value Like "*Cross Arm*" Or cell.Offset(0, 1).Value Like "*Street_Light*" Or cell.Offset(0, 1).Value Like "*street_light*" Or cell.Offset(0, 1).Value Like "*Streetlight*") Then
+            If rowsToDelete Is Nothing Then
+                Set rowsToDelete = cell.EntireRow
+            Else
+                Set rowsToDelete = Union(rowsToDelete, cell.EntireRow)
+            End If
+        End If
+    Next row
+   
+    ' Delete the identified rows
+    If Not rowsToDelete Is Nothing Then
+        rowsToDelete.Delete
+    End If
+End Sub

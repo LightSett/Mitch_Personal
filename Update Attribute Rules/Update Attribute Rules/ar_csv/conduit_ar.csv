@@ -1,0 +1,386 @@
+﻿NAME,DESCRIPTION,TYPE,SUBTYPE,FIELD,ISEDITABLE,TRIGGERINSERT,TRIGGERDELETE,TRIGGERUPDATE,SCRIPTEXPRESSION,ERRORNUMBER,ERRORMESSAGE,EXCLUDECLIENTEVALUATION,ISENABLED,BATCH,SEVERITY,TAGS,CATEGORY,CHECKPARAMETERS
+Conduit UNID,Calculate Conduit UNID,CALCULATION,,UNID,True,True,False,True,"If (($feature.GlobalID != Null) && ($feature.CONDUIT_TYPE == ""OSP Conduit"")){
+Return ""OSP:CON::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+else if (($feature.GlobalID != Null) && ($feature.CONDUIT_TYPE == ""OSP Microduct"")){
+Return ""OSP:MIC::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+else if (($feature.GlobalID != Null) && ($feature.CONDUIT_TYPE == ""OSP Innerduct"")){
+Return ""OSP:INR::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+else if (($feature.GlobalID != Null) && ($feature.CONDUIT_TYPE == ""ISP Microduct"")){
+Return ""ISP:OHG::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+else if (($feature.GlobalID != Null) && ($feature.CONDUIT_TYPE == ""Leased Conduit"")){
+Return ""CON:LSD::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+else if (($feature.GlobalID != Null) && ($feature.CONDUIT_TYPE == ""ISP Conduit"")){
+Return ""ISP:CON::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+
+",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Calculated_Length,,CALCULATION,,CALCULATED_LENGTH,True,True,False,True,"//Check for geometry change upon edit and only calculate length if geometry changes
+var oldGeo = geometry($originalFeature)
+var newGeo = geometry($feature)
+iif(Equals(newGeo, oldGeo), $feature.CALCULATED_LENGTH, LengthGeodetic($feature, 'feet'))",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+From Structure,,CALCULATION,,From_Structure,True,True,False,True,"var searchDist = 2;
+var Str = FeatureSetByName($datastore, ""UG_Structure"", [""STR_ID""], true)
+var Pole = FeatureSetByName($datastore, ""Pole"", [""UNID""], true)
+var FromPole = contains(BufferGeodetic((Geometry($feature)['paths'][0][0]), searchDist, ""feet""), Pole)
+If (($feature.CONDUIT_TYPE == ""OSP Conduit"") || ($feature.CONDUIT_TYPE == ""OSP Microduct"") || ($feature.CONDUIT_TYPE == ""OSP Innerduct"") || ($feature.CONDUIT_TYPE == ""ISP Microduct"") || ($feature.CONDUIT_TYPE == ""Leased Conduit"") || ($feature.CONDUIT_TYPE == ""ISP Conduit"")){
+ var matchedPole = First(FromPole)
+ if(IsEmpty(matchedPole)) {
+    var FromStr = contains(BufferGeodetic((Geometry($feature)['paths'][0][0]), searchDist, ""feet""), Str)
+    var matchedStr = First(FromStr)
+    iif(IsEmpty(matchedStr), null, matchedStr.STR_ID)
+ }
+ else {
+  return (matchedPole.UNID)
+ }
+}
+else {
+ var FromStr = contains(BufferGeodetic((Geometry($feature)['paths'][0][0]), searchDist, ""feet""), Str)
+ var matchedStr = First(FromStr)
+ if (IsEmpty(matchedStr)){
+  var FromPole = contains(BufferGeodetic((Geometry($feature)['paths'][0][0]), searchDist, ""feet""), Pole)
+  var matchedPole = First(FromPole)
+  return iif(IsEmpty(matchedPole), null, matchedPole.UNID)
+ }
+ else {
+  return matchedStr.STR_ID
+ }
+}",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+To Structure,,CALCULATION,,To_Structure,True,True,False,True,"var searchDist = 2;
+var Str = FeatureSetByName($datastore, ""UG_Structure"", [""STR_ID""], true)
+var Pole = FeatureSetByName($datastore, ""Pole"", [""UNID""], true)
+If (($feature.CONDUIT_TYPE == ""OSP Conduit"") || ($feature.CONDUIT_TYPE == ""OSP Microduct"") || ($feature.CONDUIT_TYPE == ""OSP Innerduct"") || ($feature.CONDUIT_TYPE == ""ISP Microduct"") || ($feature.CONDUIT_TYPE == ""Leased Conduit"") || ($feature.CONDUIT_TYPE == ""ISP Conduit"")){
+ var ToPole = contains(BufferGeodetic((Geometry($feature)['paths'][-1][-1]), searchDist, ""feet""), Pole)
+ var matchedPole = First(ToPole)
+ if(IsEmpty(matchedPole)) {
+   var ToStr = contains(BufferGeodetic((Geometry($feature)['paths'][-1][-1]), searchDist, ""feet""), Str)
+   var matchedStr = First(ToStr)
+   return iif(IsEmpty(matchedStr), null, matchedStr.STR_ID)
+ }
+ else {
+   return(matchedPole.UNID)
+ }
+}
+else {
+ var ToStr = contains(BufferGeodetic((Geometry($feature)['paths'][-1][-1]), searchDist, ""feet""), Str)
+ var matchedStr = First(ToStr)
+ if (IsEmpty(matchedStr)){
+  var ToPole = contains(BufferGeodetic((Geometry($feature)['paths'][-1][-1]), searchDist, ""feet""), Pole)
+  var matchedPole = First(ToPole)
+  return iif(IsEmpty(matchedPole), null, matchedPole.UNID)
+ }
+ else {
+  return matchedStr.STR_ID
+ }
+}",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Formatted Length,,CALCULATION,,CON_LEN,True,True,False,True,"/*
+//Check for geometry change upon edit and only calculate length if geometry changes
+var oldGeo = geometry($originalFeature)
+var newGeo = geometry($feature)
+iif(Equals(newGeo,oldGeo),Round($feature.CALCULATED_LENGTH,0) + '\'',Round(LengthGeodetic($feature,'feet'),0) + '\'')
+*/
+var CONID = $feature.CON_ID
+var CONs = Filter(FeatureSetByName($datastore,'Conduit',['CALCULATED_LENGTH','CON_ID'],true),""CON_ID = @CONID"")
+var Len = 0
+if (Count(CONs)>0) {
+    for (var CON in CONs) {
+        Len += CON.CALCULATED_LENGTH
+    }
+}
+else {Len += $feature.CALCULATED_LENGTH}
+Len = Round(Len) + '\''
+
+return Len",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Conduit ID,,CALCULATION,,CON_ID,True,True,False,False,"var FC = GetFeatureSet($feature)
+var TempID = 1
+function Sorting(a,b) { //Sort list entries in descending order
+    if (a < b)
+        return -1;
+    if (a > b)
+        return 1;
+    return 0;
+}
+Console(Count(FC))
+var fList = []
+var ExistID = []
+for (var f in FC) {
+    if (f.CON_ID != null) {
+        ExistID[Count(ExistID)] = iif(Find(':',f.CON_ID)>=0,Number(Split(f.CON_ID,':')[1]),Number(f.CON_ID))
+    }
+}
+var SortExisting = Distinct(Sort(ExistID,Sorting))
+Console(SortExisting)
+Console(Count(SortExisting))
+if (!IsEmpty(ExistID)) {
+    if (Includes(ExistID,Number(TempID))) {
+        Console(Text(TempID,'000') + ' already in use')
+        for (var i=0; i<Count(SortExisting)-1; i++) {
+            Console(i)
+            if ((SortExisting[i+1]-SortExisting[i]) != 1) {
+                Console('Gap found after ID ' + SortExisting[i])
+                Console(SortExisting[i]+1)
+                TempID = SortExisting[i]+1
+                break
+            }
+            Console(i)
+            Console(SortExisting[i])
+            Console(SortExisting[i+1])
+            Console('--------')
+        }
+        Console('Final i - ' + SortExisting[i])
+        Console(Pop(SortExisting))
+        if (Count(ExistID) == 1) {
+            TempID = TempID + 1
+        }
+        else {
+            TempID = SortExisting[i-1] + 2
+        }
+        Console(TempID)   
+    }
+}
+var ID = 'CON:' + iif(Number(TempID)>999,Text(TempID,'0000'),Text(TempID,'000'))
+Console(ID)
+return ID",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+From Conduit,,CALCULATION,,From_Conduit,True,True,False,True,"function ConvDCs(DCsF) {
+    var DCs=Split(Replace(Replace(Replace(Replace(DCsF,'\""',''),'],[','];['),'[',''),']',''),';')
+    var data = []; for (var DC in DCs) {Push(data,Split(DCs[DC],','))}
+    for (var d in data) {if (Text(data[d])==Text([""""])) {data[d]=[]}}
+    return data
+}
+function ListCt(List) {
+    var Ct=0
+    for (var L in List) {Ct+=Count(List[L])}
+    return Ct
+}
+
+Console($feature.ObjectID)
+var DC = $feature.DUCT_CONTENT
+var DCarray = ConvDCs(DC)
+var CONs = FeatureSetByName($datastore,'Conduit',['ObjectID','DUCT_CONTENT'],true)
+var CONOID = null
+if ($feature.DUCT_SEGMENTS == NULL) {
+    var sql = ""DUCT_CONTENT = @DC""
+    var fromCONs = Filter(Intersects(Geometry($feature)['paths'][0][0], CONs),sql)
+    Console(Count(fromCONs)-1)
+    for (var CON in fromCONs) {
+        if (!Equals($feature.ObjectID,CON.ObjectID)) {
+            CONOID = Text(CON.ObjectID)
+        }
+    }
+}
+else {
+    var fromCONs = Intersects(Geometry($feature)['paths'][0][0], CONs)
+    var CONOID = []
+    for (var CON in fromCONs) {
+        if (!Equals($feature.ObjectID,CON.ObjectID)) {
+            var CONDCs = ConvDCs(CON.DUCT_CONTENT)
+            for (var DCon in DCarray) {
+                for (var C in DCarray[DCon]) {
+                    if (Find('VAC',DCarray[DCon][C])>=0) {continue}
+                    for (var D in CONDCs) {
+                        if (Includes(CONDCs[D],DCarray[DCon][C])) {
+                            if (!Includes(CONOID,Text(CON.ObjectID))) {
+                            Push(CONOID,Text(CON.ObjectID))
+                            }
+                        Console(Text(CON.ObjectID) + ' shares transmedia. (' + DCarray[DCon] + ')')
+                        }
+                        else {Console('No shared transmedia.')}
+                    }
+                }
+            }
+        }
+    }
+}
+
+Console(CONOID)
+if (!IsEmpty(fromCONs)) {
+    if (TypeOf(CONOID) == 'Array') {
+        return iif(Count(CONOID)==0,null,CONOID)
+    }
+    else {
+        return CONOID
+    }
+}
+else {
+    return null
+}",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+To Conduit,,CALCULATION,,To_Conduit,True,True,False,True,"function ConvDCs(DCsF) {
+    var DCs=Split(Replace(Replace(Replace(Replace(DCsF,'\""',''),'],[','];['),'[',''),']',''),';')
+    var data = []; for (var DC in DCs) {Push(data,Split(DCs[DC],','))}
+    for (var d in data) {if (Text(data[d])==Text([""""])) {data[d]=[]}}
+    return data
+}
+function ListCt(List) {
+    var Ct=0
+    for (var L in List) {Ct+=Count(List[L])}
+    return Ct
+}
+
+Console($feature.ObjectID)
+var DC = $feature.DUCT_CONTENT
+var DCarray = ConvDCs(DC)
+var CONs = FeatureSetByName($datastore,'Conduit',['ObjectID','DUCT_CONTENT'],true)
+var CONOID = null
+if ($feature.DUCT_SEGMENTS == NULL) {
+    var sql = ""DUCT_CONTENT = @DC""
+    var toCONs = Filter(Intersects(Geometry($feature)['paths'][-1][-1], CONs),sql)
+    Console(Count(toCONs)-1)
+    for (var CON in toCONs) {
+        if (!Equals($feature.ObjectID,CON.ObjectID)) {
+            CONOID = Text(CON.ObjectID)
+        }
+    }
+}
+else {
+    var toCONs = Intersects(Geometry($feature)['paths'][-1][-1], CONs)
+    var CONOID = []
+    for (var CON in toCONs) {
+        if (!Equals($feature.ObjectID,CON.ObjectID)) {
+            var CONDCs = ConvDCs(CON.DUCT_CONTENT)
+            for (var DCon in DCarray) {
+                for (var C in DCarray[DCon]) {
+                    if (Find('VAC',DCarray[DCon][C])>=0) {continue}
+                    for (var D in CONDCs) {
+                        if (Includes(CONDCs[D],DCarray[DCon][C])) {
+                            if (!Includes(CONOID,Text(CON.ObjectID))) {
+                            Push(CONOID,Text(CON.ObjectID))
+                            }
+                        Console(Text(CON.ObjectID) + ' shares transmedia. (' + DCarray[DCon] + ')')
+                        }
+                        else {Console('No shared transmedia.')}
+                    }
+                }
+            }
+        }
+    }
+}
+
+Console(CONOID)
+if (!IsEmpty(toCONs)) {
+    if (TypeOf(CONOID) == 'Array') {
+        return iif(Count(CONOID)==0,null,CONOID)
+    }
+    else {
+        return CONOID
+    }
+}
+else {
+    return null
+}",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Offset Side,,CALCULATION,,Offset_Side,True,True,False,False,"var Roads = FeatureSetByName($datastore,'Roads',['ObjectID'],true)
+Console(Count(Roads))
+//Geodesic measurement and converting to Planar measurement
+var originShift = 2.0*PI*6378137.0/2.0
+var ConvRatio = 180/originShift
+var OffsetDist_Test = ConvRatio*50
+var OffsetSide = ''
+Console($feature.CALCULATED_LENGTH)
+//Store coordinates of line
+var Geom = Geometry($feature)['paths'][0]
+var Paths = []
+for (var pnt in Geom) {
+    var pntX = Geom[pnt]['x']
+    var pntY = Geom[pnt]['y']
+    Push(Paths,[pntX,pntY,0,null])
+}
+Console('Conduit coordinates:\n' + Paths)
+//RIGHT SIDE--------------------------------------------------------------------------------------
+//Find Road on right side of line
+//Store reversed coordinates of right offset line
+var ROffset = Offset($feature, OffsetDist_Test, 'feet', 'round')
+Console(iif(IsEmpty(ROffset),'empty','not empty'))
+if (IsEmpty(ROffset)) {var ROffset = Offset($feature, OffsetDist_Test, 'feet', 'square')}
+Console(iif(IsEmpty(ROffset),'empty','not empty'))
+if (IsEmpty(ROffset)) {return null}
+var ROffGeom = ROffset['paths'][0]
+var ROffPaths = []
+for (var pnt in ROffGeom) {
+    var pntX = ROffGeom[pnt]['x']
+    var pntY = ROffGeom[pnt]['y']
+    Insert(ROffPaths,0,[pntX,pntY,0,null])
+}
+Console('Reversed right offset coordinates:\n' + ROffPaths)
+//Combine Span coordinates and reversed offset coordinated to make a right side polygon
+var ROffRings = Splice(Paths,ROffPaths)
+Console('Spliced ring coordinates:\n' + ROffRings)
+var ROffJSON = {'rings':[ROffRings],'spatialReference':{'wkid':4326}}
+var ROffPoly = Polygon(ROffJSON)
+Console('Area of right side polygon: ' + AreaGeodetic(ROffPoly,'square-feet'))
+Console('Right side polygon:\n' + ROffPoly)
+//Find intersecting Road and total lengths to determine offset side toward road
+var RRoadArea = 0
+var RRoads = Intersects(Roads,ROffPoly)
+Console(Count(RRoads))
+for (var RRoad in RRoads) {
+    Console(RRoad.ObjectID)
+    var RRoadBuff = BufferGeodetic(RRoad,1,'feet')
+    Console('Area of Right poly: ' + AreaGeodetic(ROffPoly,'square-feet'))
+    Console('Area of Road poly: ' + AreaGeodetic(Difference(ROffPoly,RRoadBuff),'square-feet'))
+    var AreaDiff = AreaGeodetic(ROffPoly,'square-feet')-AreaGeodetic(Difference(ROffPoly,RRoadBuff),'square-feet')
+    Console('Area of Road in right side poly: ' + AreaDiff)
+    RRoadArea += AreaDiff
+}
+Console('Right side Road area: ' + Round(RRoadArea) + ' sqft')
+//LEFT SIDE---------------------------------------------------------------------------------------
+//Find Road on left side of line
+//Store reversed coordinates of left offset line
+var LOffset = Offset($feature, -OffsetDist_Test, 'feet', 'round')
+Console(iif(IsEmpty(LOffset),'empty','not empty'))
+if (IsEmpty(LOffset)) {var LOffset = Offset($feature, OffsetDist_Test, 'feet', 'square')}
+Console(iif(IsEmpty(LOffset),'empty','not empty'))
+if (IsEmpty(LOffset)) {return null}
+var LOffGeom = LOffset['paths'][0]
+var LOffPaths = []
+for (var pnt in LOffGeom) {
+    var pntX = LOffGeom[pnt]['x']
+    var pntY = LOffGeom[pnt]['y']
+    Insert(LOffPaths,0,[pntX,pntY,0,null])
+}
+Console('Reversed left offset coordinates:\n' + LOffPaths)
+//Combine Span coordinates and reversed offset coordinated to make a left side polygon
+var LOffRings = Splice(Paths,LOffPaths)
+Console('Spliced ring coordinates:\n' + LOffRings)
+var LOffJSON = {'rings':[LOffRings],'spatialReference':{'wkid':4326}}
+var LOffPoly = Polygon(LOffJSON)
+Console('Area of left side polygon: ' + AreaGeodetic(LOffPoly,'square-feet'))
+Console('Left side polygon:\n' + LOffPoly)
+//Find intersecting Road and total lengths to determine offset side toward road
+var LRoadArea = 0
+var LRoads = Intersects(Roads,LOffPoly)
+Console(Count(LRoads))
+for (var LRoad in LRoads) {
+    Console(LRoad.ObjectID)
+    var LRoadBuff = BufferGeodetic(LRoad,1,'feet')
+    Console('Area of Left poly: ' + AreaGeodetic(LOffPoly,'square-feet'))
+    Console('Area of Road poly: ' + AreaGeodetic(Difference(LOffPoly,LRoadBuff),'square-feet'))
+    var AreaDiff = AreaGeodetic(LOffPoly,'square-feet')-AreaGeodetic(Difference(LOffPoly,LRoadBuff),'square-feet')
+    Console('Area of Road in left side poly: ' + AreaDiff)
+    LRoadArea += AreaDiff
+}
+Console('Left side Road area: ' + Round(LRoadArea) + ' sqft')
+//SET SIDE----------------------------------------------------------------------------------------
+//Compare total Road areas on right and left side.  Greater total is set as offset side.
+OffsetSide = iif((RRoadArea > LRoadArea),'R','L')
+Console('Offset side to center: ' + OffsetSide)
+return OffsetSide",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Work Order ID,,CALCULATION,,WORK_ORDER_ID,True,True,False,True,"var FDAs = Intersects($feature,FeatureSetByName($datastore,'FDA',[""WORK_ORDER_ID""],true))
+var FDA = First(FDAs)
+if (Count(FDAs) > 1) {
+    FDA = First(Intersects(Geometry($feature)['paths'][-1][-1],FeatureSetByName($datastore,'FDA',[""WORK_ORDER_ID""],true)))
+}
+iif(IsEmpty(FDA),null,FDA.WORK_ORDER_ID)",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Asbuilt FTG,,CALCULATION,,MEASURED_LENGTH,True,True,False,True,"var Spans = FeatureSetByName($datastore,'Span',['ObjectID','MEASURED_LENGTH'],true)
+
+var Geom = Geometry($feature)
+
+var Ss = Contains(Geom,Spans)
+var ftg = 0
+for (var S in Ss) {
+  ftg += S.MEASURED_LENGTH
+}
+
+return ftg",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"

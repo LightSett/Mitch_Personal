@@ -1,0 +1,10 @@
+var Spans = FeatureSetByName($datastore,'Span',['ObjectID'],true)
+var SList = ''
+
+for (var Span in Spans) {
+     if (Contains($feature,Span)) {
+         SList += Text(Span.ObjectID) + ','
+     }
+}
+
+return SList

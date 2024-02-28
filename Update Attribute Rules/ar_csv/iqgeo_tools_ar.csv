@@ -1,0 +1,1244 @@
+﻿NAME,DESCRIPTION,TYPE,SUBTYPE,FIELD,ISEDITABLE,TRIGGERINSERT,TRIGGERDELETE,TRIGGERUPDATE,SCRIPTEXPRESSION,ERRORNUMBER,ERRORMESSAGE,EXCLUDECLIENTEVALUATION,ISENABLED,BATCH,SEVERITY,TAGS,CATEGORY,CHECKPARAMETERS
+IQGeo Tools 1,Migrate Routes; Migrate Structures; Migrate Clusters,CALCULATION,,IQGeo_Tools_Rules_1,True,False,False,True,"//LLD Features grouped by IQGeo feature
+//Routes
+var Spans = FeatureSetByName($datastore,'Span',['ObjectID','GlobalID','SUBTYPE_CODE','CALCULATED_LENGTH','FOC_COUNT','FOC_LIST','STRAND_LIST'],true)
+var UGSpans = Filter(Spans,""SUBTYPE_CODE = 2"")
+var OHSpans = Filter(Spans,""SUBTYPE_CODE = 3"")
+//Structures
+var UGSTRs = FeatureSetByName($datastore,'UG_Structure',['ObjectID','SUBTYPE_CODE','STR_ID','STR_GUID','STRUCTURE_TYPE','DIMENSIONS','STATUS','GROUNDED'],true)
+var STRs = Filter(UGSTRs,""SUBTYPE_CODE NOT IN (6,7,9,10,11,15) And STATUS <> 'Existing'"")
+var FDHSTR = Filter(UGSTRs,""SUBTYPE_CODE = 10 And STATUS <> 'Existing'"")
+var BPs = Filter(UGSTRs,""SUBTYPE_CODE = 8 And STATUS <> 'Existing'"")
+var LLDPoles = FeatureSetByName($datastore,'Pole',['ObjectID','SUBTYPE_CODE','Pole_ID','Pole_GUID','Pole_Type','Pole_Tag','Pole_Owner','Exist_Ground','Prop_Ground'],true)
+//Equipment
+var EQs = FeatureSetByName($datastore,'Equipment',['ObjectID','SUBTYPE_CODE','WORK_ORDER_ID','EQUIP_ID','Equip_GUID','STATUS','ENVIRONMENT','Relative_Location','PLACED_ADDRESS','EQUIPMENT_TYPE','Split_Ratio','OUTPUT_PORTS','Stub_Length','PON_Count'],true)
+var MSTs = Filter(EQs,""SUBTYPE_CODE IN (3,4,5,6) And STATUS <> 'Existing'"")
+var FLs = Filter(EQs,""SUBTYPE_CODE = 8 And STATUS <> 'Existing'"")
+var SPLTs = Filter(EQs,""SUBTYPE_CODE IN (7,10,11,12,13,14) And STATUS <> 'Existing'"")
+var FDHs = Filter(EQs,""SUBTYPE_CODE = 9 And STATUS <> 'Existing'"")
+var SPLCLs = FeatureSetByName($datastore,'Splice_Closure',['ObjectID','SUBTYPE_CODE','SPLCL_ID','SPLCL_GUID','STATUS','ENVIRONMENT','PLACE_ADDRESS'],true)
+var Splices = Filter(SPLCLs,""SUBTYPE_CODE <> 7 And STATUS <> 'Existing'"")
+var NAPs = Filter(SPLCLs,""SUBTYPE_CODE = 7 And STATUS <> 'Existing'"")
+//Cables
+var Cables = FeatureSetByName($datastore,'Transmedia',['ObjectID','SUBTYPE_CODE','CALCULATED_LENGTH','Adjusted_Length','Cable_ID','Cable_GUID','Total_Fibers','Network_Type','Fiber_Count','PON_Count',
+                                                       'Cable_Series','Environment','Transmedia_Type','Cable_Type','Cable_Structure','Toneable','Status'],true)
+var Feeds = Filter(Cables,""SUBTYPE_CODE NOT IN (10,11,12) And Network_Type = 'Feeder' And STATUS <> 'Existing'"")
+var Dists = Filter(Cables,""SUBTYPE_CODE NOT IN (10,11,12) And Network_Type = 'Distribution' And STATUS <> 'Existing'"")
+var Tails = Filter(Cables,""SUBTYPE_CODE = 11 And STATUS <> 'Existing'"")
+var Drops = Filter(Cables,""SUBTYPE_CODE = 12 And STATUS <> 'Existing'"")
+var nonDrops = Filter(Cables,""SUBTYPE_CODE <> 12 And STATUS <> 'Existing'"")
+var SLs =  FeatureSetByName($datastore,'Slack_Loop',['ObjectID','SUBTYPE_CODE','Length_Adjustment','Slack_Loop_ID','Slack_Loop_GUID','Status','Cable_ID','Cable_GUID','Equipment_ID','Equipment_GUID'],true)
+//Conduits
+var CONs = FeatureSetByName($datastore,'Conduit',['ObjectID','SUBTYPE_CODE','Calculated_Length','CON_ID','CON_GUID','Status','Duct_Size','Duct_Schedule','Duct_Material'],true)
+//Clusters
+var FDAs = FeatureSetByName($datastore,'FDA',['ObjectID','GlobalID','WORK_ORDER_ID'],true)
+var SAs = FeatureSetByName($datastore,'Serving_Area',['ObjectID','GlobalID','ASSOC_EQUIPMENT'],true)
+var EQSAs = Filter(SAs,""SUBTYPE_CODE = 2"")
+var MDUSAs = Filter(SAs,""SUBTYPE_CODE = 4"")
+//Others
+var DPs = FeatureSetByName($datastore,'Demand_Point',['ObjectID','SUBTYPE_CODE','Address','Address_Type','AddNum_Pre','Add_Number','AddNum_Suf','St_PreMod','St_PreDir','St_PreTyp','St_Name','St_PosTyp','St_PosDir','St_PosMod','Unit',
+                                                      'City','County','State','Zip_Code','Zip_Code4'],true)
+var Strands = FeatureSetByName($datastore,'Strand',['ObjectID'],true)
+var ProjDets = First(FeatureSetByName($datastore,'Project_Details',['*'],true))
+var IQGDets = First(FeatureSetByName($datastore,'IQGeo_Details',['CO_Location','CO_CLLI','PSA_Num','PSA_ProjNum'],true))
+//IQGeo Feature Classes
+var UGRs = FeatureSetByName($datastore,'ug_route_IQGeo',['*'],true)
+var OHRs = FeatureSetByName($datastore,'oh_route_IQGeo',['*'],true)
+var manholes = FeatureSetByName($datastore,'manhole_IQGeo',['*'],true)
+var poles = FeatureSetByName($datastore,'pole_IQGeo',['*'],true)
+var rjuncs = FeatureSetByName($datastore,'mywcom_route_junction_IQGeo',['*'],true)
+var cabinets = FeatureSetByName($datastore,'cabinet_IQGeo',['*'],true)
+var fiberpps = FeatureSetByName($datastore,'fiber_patch_panel_IQGeo',['*'],true)
+var fibersplts = FeatureSetByName($datastore,'fiber_splitter_IQGeo',['*'],true)
+var fibertaps = FeatureSetByName($datastore,'fiber_tap_IQGeo',['*'],true)
+var fibercables = FeatureSetByName($datastore,'fiber_cable_IQGeo',['*'],true)
+var fibersegs = FeatureSetByName($datastore,'mywcom_fiber_segment_IQGeo',['*'],true)
+var fiberslacks = FeatureSetByName($datastore,'mywcom_fiber_slack_IQGeo',['*'],true)
+var conduits = FeatureSetByName($datastore,'conduit_IQGeo',['*'],true)
+var spliceclosures = FeatureSetByName($datastore,'splice_closure_IQGeo',['*'],true)
+var distclusts = FeatureSetByName($datastore,'distribution_cluster_IQGeo',['*'],true)
+var dropclusts = FeatureSetByName($datastore,'drop_cluster_IQGeo',['*'],true)
+var mdubounds = FeatureSetByName($datastore,'mdu_boundary_IQGeo',['*'],true)
+var DateCur = TimeStamp()
+var DateProj = Text(DateAdd(DateCur,30,'days'),'Y-M-D')
+//Errors
+var ERRORS = []
+//MIGRATE ROUTES
+if ($feature.IQGeo_Tools=='Migrate_Routes') {
+  var EOHRs = []
+  for (var E in OHRs) {Push(EOHRs,E.ref_GUID)}
+  var EUGRs = []
+  for (var E in UGRs) {Push(EUGRs,E.ref_GUID)}
+  Console('\n--BEGIN PROCESSING--\n')
+  var OHRadds = []
+  var OHRupdates = []
+  for (var F in OHSpans) {
+    var FOID = F.ObjectID; var FGUID = F.GlobalID; var Len = F.CALCULATED_LENGTH
+    Console('  FOID: '+FOID+' - '+Ceil(Len)+'\' ('+Ceil(Len)+' ft)')
+    var TotCts = Count(Within(F,Cables)); var DropCts = Count(Within(F,Drops)); var StrandCt = Count(Within(F,Strands))
+    Console('  Total: '+TotCts+' // Drops: '+DropCts+' // Strands: '+StrandCt)
+    if (StrandCt==0/* || (TotCts==DropCts)*/) {Console('  Skip - No Strand\n\n  -NEXT OH SPAN-\n'); continue}
+    //Define oh_route data
+    var ID = 'oh_route/'+Text(FOID)
+    var Pts = Geometry(f)['paths'][0]
+    var FPath = []
+    for (var Pt in Pts) {Push(FPath,[Pts[Pt]['x'],Pts[Pt]['y']])}
+    var routegeom = Polyline({'hasZ':false,'hasM':false,'paths':[FPath],'spatialReference':{'wkid':4326}})
+    var OHRdata = {'attributes':{'id':ID/*,'length':Ceil(Len)*/,'ref_GUID':FGUID},'geometry':routegeom}
+    if (!Includes(EOHRs,FGUID)) {Push(OHRadds,OHRdata)}
+    Console('\n  -NEXT OH SPAN-\n')
+  }
+  var UGRadds = []
+  var UGRupdates = []
+  for (var F in UGSpans) {
+    var FOID = F.ObjectID; var FGUID = F.GlobalID; var Len = F.CALCULATED_LENGTH
+    Console('  FOID: '+FOID+' - '+Ceil(Len)+'\' ('+Ceil(Len)+' ft)')
+    //Define ug_route data
+    var ID = 'ug_route/'+Text(FOID)
+    var Pts = Geometry(f)['paths'][0]
+    var FPath = []
+    for (var Pt in Pts) {Push(FPath,[Pts[Pt]['x'],Pts[Pt]['y']])}
+    var routegeom = Polyline({'hasZ':false,'hasM':false,'paths':[FPath],'spatialReference':{'wkid':4326}})
+    var UGRdata = {'attributes':{'id':ID/*,'length':Ceil(Len)*/,'ref_GUID':FGUID},'geometry':routegeom}
+    if (!Includes(EUGRs,FGUID)) {Push(UGRadds,UGRdata)}
+    Console('\n  -NEXT UG SPAN-\n')
+  }
+  Console('\n'+'OHRadds: [' + Count(OHRadds) + ']')
+  for (var key in OHRadds) {Console(key + ':' + OHRadds[key])}
+  Console('\n'+'OHRupdates: [' + Count(OHRupdates) + ']')
+  for (var key in OHRupdates) {Console(key + ':' + OHRupdates[key])}
+  Console('\n'+'UGRadds: [' + Count(UGRadds) + ']')
+  for (var key in UGRadds) {Console(key + ':' + UGRadds[key])}
+  Console('\n'+'UGRupdates: [' + Count(UGRupdates) + ']')
+  for (var key in UGRupdates) {Console(key + ':' + UGRupdates[key])}
+  Console('\nERRORS:\n' + ERRORS)
+  return {
+    'result':iif(Count(ERRORS)!=0,iif(Count(Text(ERRORS))>5000,Left(Text(ERRORS),4997)+'...',ERRORS),'No Errors'),
+    'edit':[
+      {'className':'oh_route_IQGeo', 
+      'adds':OHRadds},
+      {'className':'oh_route_IQGeo', 
+      'updates':OHRupdates},
+      {'className':'ug_route_IQGeo', 
+      'adds':UGRadds},
+      {'className':'ug_route_IQGeo', 
+      'updates':UGRupdates}
+    ]
+  }
+}
+//MIGRATE STRUCTURES
+if ($feature.IQGeo_Tools=='Migrate_Structures') {
+  var Emanholes = []
+  for (var E in manholes) {Push(Emanholes,E.ref_GUID)}
+  var Epoles = []
+  for (var E in poles) {Push(Epoles,E.ref_GUID)}
+  var ERJs = []
+  for (var E in rjuncs) {Push(ERJs,E.ref_GUID)}
+  var Ecabinets = []
+  for (var E in cabinets) {Push(Ecabinets,E.ref_GUID)}
+  Console('\n--BEGIN PROCESSING--\n')
+  var rjuncadds = []
+  var rjuncupdates = []
+  var manholeadds = []
+  var manholeupdates = []
+  for (var F in STRs) {
+    var FOID = F.ObjectID; var Name = Replace(F.STR_ID,'-',''); var FGUID = F.STR_GUID
+    var Dims = F.DIMENSIONS; var ST = F.SUBTYPE_CODE; var Gnd = iif(F.GROUNDED=='Yes','yes','no')
+    Console('  FOID: '+FOID+'\n  ST: '+ST+' - Dims: '+Dims)
+    //Create route_junction from bore pits
+    if (ST==8) {
+      var ID = 'mywcom_route_junction/'+Text(FOID)
+      var rjuncdata = {'attributes':{'id':ID,'ref_GUID':FGUID},'geometry':Geometry(f)}
+      if (!Includes(ERJs,FGUID)) {Push(rjuncadds,rjuncdata)}
+      Console('\n  -NEXT STRUCTURE-\n')
+      continue
+    }
+    var Types = {'2':'HH','3':'HH','4':'HH','5':'FP','12':'PED','13':'PED','14':'PED'}
+    var Usage = Types[Text(ST)]
+    if (Dims=='12x12x12') {Dims='12X12X12 T22'}
+    if (Dims=='10x15x12') {Dims='10X15X12'}
+    if (Dims=='17x30x24') {Dims='17x30x24'}
+    if (Dims=='24x36x24') {Dims='24X36X24'}
+    if (Dims=='30x48x36') {Dims='30X48'}
+    if (Dims=='30x60x48') {Dims='30X60'}
+    if (Dims=='48x96x48') {Dims=' 4x8x4'}
+    var Spec = 'manhole_spec/'+iif(Usage=='FP','HH',Usage)+Dims
+    var FRC = '85C'
+    //Define manhole data
+    var ID = 'manhole/'+Text(FOID)
+    var manholedata = {'attributes':{'id':ID,'owner':'GigaPower','name':Name,'specification':Spec,'usage':Usage,'ground':Gnd,'frc':FRC,'ref_GUID':FGUID},'geometry':Geometry(f)}
+    if (!Includes(Emanholes,FGUID)) {Push(manholeadds,manholedata)}
+    Console('\n  -NEXT STRUCTURE-\n')
+  }
+  var poleadds = []
+  var poleupdates = []
+  for (var F in LLDPoles) {
+    var FOID = F.ObjectID; var FGUID = F.Pole_GUID; var Owner = F.Pole_Owner; var ST = F.SUBTYPE_CODE
+    var Name = iif(F.Pole_Tag==null,Replace(F.Pole_ID,':',''),F.Pole_Tag); var Gnd = iif(F.Prop_Ground=='Yes','yes','no')
+    Console('  FOID: '+FOID)
+    if (F.Pole_Type=='Drop Pole' || ST==3 || Count(Intersects(F,Strands))==0) {continue}
+    //Create route_junction from crossover
+    if (ST==4) {
+      var ID = 'mywcom_route_junction/'+Text(FOID)
+      var rjuncdata = {'attributes':{'id':ID,'ref_GUID':FGUID},'geometry':Geometry(f)}
+      if (!Includes(ERJs,FGUID)) {Push(rjuncadds,rjuncdata)}
+      Console('\n  -NEXT POLE-\n')
+      continue
+    }
+    //Define pole data
+    var ID = 'pole/'+Text(FOID)
+    var poledata = {'attributes':{'id':ID,'owner':Owner,'name':Name,'ground':Gnd,'ref_GUID':FGUID},'geometry':Geometry(f)}
+    if (!Includes(Epoles,FGUID)) {Push(poleadds,poledata)}
+    Console('\n  -NEXT POLE-\n')
+  }
+  var cabinetadds = []
+  var cabinetupdates = []
+  for (var F in FDHs) {
+    var FOID = F.ObjectID; var FGUID = F.EQUIP_GUID
+    var PSA = F.WORK_ORDER_ID; var RelLoc = F.Relative_Location; var PAdd = F.PLACED_ADDRESS
+    Console('  FOID: '+FOID)
+    //Define cabinet data
+    var SR = iif(F.Split_Ratio==null,null,Split(F.Split_Ratio,':')[1])
+    var PFPLoc = ProjDets.FDA_Location
+    var PFPLocFull = ProjDets.OLT_Location
+    var FRC = '85C'
+    var Stub = iif(F.Stub_Length==null,'100ST',F.Stub_Length+'ST')
+    var Ports = iif(F.OUTPUT_PORTS==null,'864',Text(F.OUTPUT_PORTS))
+    var model = iif(F.ENVIRONMENT=='Aerial','AABMD',iif(F.Stub_Length=='328','BJBS','BABMS'))
+    var Spec = 'cabinet_spec/'+model+Ports+'-'+Stub
+    if (F.ENVIRONMENT=='Aerial' && F.Stub_Length=='328' && F.OUTPUT_PORTS<=432) {Spec = 'AJPD'+Text(F.OUTPUT_PORTS)+'-328ST'}
+    var PONs = iif(F.PON_COUNT==null,'Counts TBD',Replace(F.PON_COUNT,':',', '))
+    var PONs = 'PON'+PFPLoc+', 1-'+Ports
+    var ID = 'cabinet/'+Text(FOID)
+    var cabinetdata = {'attributes':{'id':ID,'name':PFPLocFull,'type':'PFP','specification':Spec,'split':SR,'frc':FRC,'psa':PSA,'ecd':DateProj,'pon':PONs,'ref_GUID':FGUID},'geometry':Geometry(f)}
+    if (!Includes(Ecabinets,FGUID)) {Push(cabinetadds,cabinetdata)}
+    Console('\n  -NEXT FDH-\n')
+  }
+  Console('\n'+'manholeadds: [' + Count(manholeadds) + ']')
+  for (var key in manholeadds) {Console(key + ':' + manholeadds[key])}
+  Console('\n'+'manholeupdates: [' + Count(manholeupdates) + ']')
+  for (var key in manholeupdates) {Console(key + ':' + manholeupdates[key])}
+  Console('\n'+'poleadds: [' + Count(poleadds) + ']')
+  for (var key in poleadds) {Console(key + ':' + poleadds[key])}
+  Console('\n'+'poleupdates: [' + Count(poleupdates) + ']')
+  for (var key in poleupdates) {Console(key + ':' + poleupdates[key])}
+  Console('\n'+'rjuncadds: [' + Count(rjuncadds) + ']')
+  for (var key in rjuncadds) {Console(key + ':' + rjuncadds[key])}
+  Console('\n'+'rjuncupdates: [' + Count(rjuncupdates) + ']')
+  for (var key in rjuncupdates) {Console(key + ':' + rjuncupdates[key])}
+  Console('\n'+'cabinetadds: [' + Count(cabinetadds) + ']')
+  for (var key in cabinetadds) {Console(key + ':' + cabinetadds[key])}
+  Console('\n'+'cabinetupdates: [' + Count(cabinetupdates) + ']')
+  for (var key in cabinetupdates) {Console(key + ':' + cabinetupdates[key])}
+  Console('\nERRORS:\n' + ERRORS)
+  return {
+    'result':iif(Count(ERRORS)!=0,iif(Count(Text(ERRORS))>5000,Left(Text(ERRORS),4997)+'...',ERRORS),'No Errors'),
+    'edit':[
+      {'className':'manhole_IQGeo', 
+      'adds':manholeadds},
+      {'className':'manhole_IQGeo', 
+      'updates':manholeupdates},
+      {'className':'pole_IQGeo', 
+      'adds':poleadds},
+      {'className':'pole_IQGeo', 
+      'updates':poleupdates},
+      {'className':'mywcom_route_junction_IQGeo', 
+      'adds':rjuncadds},
+      {'className':'mywcom_route_junction_IQGeo', 
+      'updates':rjuncupdates},
+      {'className':'cabinet_IQGeo', 
+      'adds':cabinetadds},
+      {'className':'cabinet_IQGeo', 
+      'updates':cabinetupdates}
+    ]
+  }
+}
+//MIGRATE CLUSTERS
+if ($feature.IQGeo_Tools=='Migrate_Clusters') {
+  var Edistclusts = []
+  for (var E in distclusts) {Push(Edistclusts,E.ref_GUID)}
+  var Edropclusts = []
+  for (var E in dropclusts) {Push(Edropclusts,E.ref_GUID)}
+  Console('\n--BEGIN PROCESSING--\n')
+  var distclustadds = []
+  var distclustupdates = []
+  for (var F in FDAs) {
+    var FOID = F.ObjectID; var FGUID = F.GlobalID
+    Console('  FOID: '+FOID)
+    //Define cabinet data
+    var PFPLoc = ProjDets.OLT_Location
+    var PFP = First(FDHs)
+    if (Find(':',PFP.Split_Ratio)<0) {return {'errorMessage':'PFP Split_Ratio (1:XX) field not populated!'}}
+    var SR = iif(PFP.Split_Ratio==null,null,Split(PFP.Split_Ratio,':')[1])
+    //Define CO data
+    var COLoc = IQGDets.CO_Location; var CLLI = IQGDets.CO_CLLI
+    var PSA = F.WORK_ORDER_ID
+    var ID = 'distribution_cluster/'+Text(FOID)
+    var Pts = Geometry(f)['rings'][0]
+    var FPath = []
+    for (var Pt in Pts) {Push(FPath,[Pts[Pt]['x'],Pts[Pt]['y']])}
+    var polygeom = Polygon({'hasZ':false,'hasM':false,'rings':[FPath],'spatialReference':{'wkid':4326}})
+    var distclustdata = {'attributes':{'id':ID,'olt_name':CLLI,'pfp_name':PSA,'type':SR,'ref_GUID':FGUID},'geometry':polygeom}
+    if (!Includes(Edistclusts,FGUID)) {Push(distclustadds,distclustdata)}
+    Console('\n  -NEXT FDA-\n')
+  }
+  var dropclustadds = []
+  var dropclustupdates = []
+  for (var F in EQSAs) {
+    var FOID = F.ObjectID; var FGUID = F.GlobalID
+    var EQOID = Number(F.ASSOC_EQUIPMENT)
+    Console('  FOID: '+FOID)
+    //Define associated equipment data
+    var EQ = First(Filter(EQs,""ObjectID = ""+EQOID+""""))
+    if (EQ==null) {return {'errorMessage':'SA OID: '+FOID+' has no equipment association.'}}
+    var EQID = EQ.Relative_Location+' '+EQ.PLACED_ADDRESS
+    var EQType = EQ.EQUIPMENT_TYPE
+    if (EQType=='Future Loop') {continue}
+    var ID = 'drop_cluster/'+Text(FOID)
+    var Pts = Geometry(f)['rings'][0]
+    var FPath = []
+    for (var Pt in Pts) {Push(FPath,[Pts[Pt]['x'],Pts[Pt]['y']])}
+    var polygeom = Polygon({'hasZ':false,'hasM':false,'rings':[FPath],'spatialReference':{'wkid':4326}})
+    var dropclustdata = {'attributes':{'id':ID,'term_name':EQID,'ref_GUID':FGUID},'geometry':polygeom}
+    if (!Includes(Edropclusts,FGUID)) {Push(dropclustadds,dropclustdata)}
+    Console('\n  -NEXT SA-\n')
+  }
+  Console('\n'+'distclustadds: [' + Count(distclustadds) + ']')
+  for (var key in distclustadds) {Console(key + ':' + distclustadds[key])}
+  Console('\n'+'distclustupdates: [' + Count(distclustupdates) + ']')
+  for (var key in distclustupdates) {Console(key + ':' + distclustupdates[key])}
+  Console('\n'+'dropclustadds: [' + Count(dropclustadds) + ']')
+  for (var key in dropclustadds) {Console(key + ':' + dropclustadds[key])}
+  Console('\n'+'dropclustupdates: [' + Count(dropclustupdates) + ']')
+  for (var key in dropclustupdates) {Console(key + ':' + dropclustupdates[key])}
+  Console('\nERRORS:\n' + ERRORS)
+  return {
+    'result':iif(Count(ERRORS)!=0,iif(Count(Text(ERRORS))>5000,Left(Text(ERRORS),4997)+'...',ERRORS),'No Errors'),
+    'edit':[
+      {'className':'distribution_cluster_IQGeo', 
+      'adds':distclustadds},
+      {'className':'distribution_cluster_IQGeo', 
+      'updates':distclustupdates},
+      {'className':'drop_cluster_IQGeo', 
+      'adds':dropclustadds},
+      {'className':'drop_cluster_IQGeo', 
+      'updates':dropclustupdates}
+    ]
+  }
+}",0,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+IQGeo Tools 2,Migrate Equipment,CALCULATION,,IQGeo_Tools_Rules_2,True,False,False,True,"//LLD Features grouped by IQGeo feature
+//Routes
+var Spans = FeatureSetByName($datastore,'Span',['ObjectID','GlobalID','SUBTYPE_CODE','CALCULATED_LENGTH','FOC_COUNT','FOC_LIST','STRAND_LIST'],true)
+var UGSpans = Filter(Spans,""SUBTYPE_CODE = 2"")
+var OHSpans = Filter(Spans,""SUBTYPE_CODE = 3"")
+//Structures
+var UGSTRs = FeatureSetByName($datastore,'UG_Structure',['ObjectID','SUBTYPE_CODE','STR_ID','STR_GUID','STRUCTURE_TYPE','DIMENSIONS','STATUS','GROUNDED'],true)
+var STRs = Filter(UGSTRs,""SUBTYPE_CODE NOT IN (6,7,8,9,10,11,15) And STATUS <> 'Existing'"")
+var FDHSTR = Filter(UGSTRs,""SUBTYPE_CODE = 10 And STATUS <> 'Existing'"")
+var BPs = Filter(UGSTRs,""SUBTYPE_CODE = 8 And STATUS <> 'Existing'"")
+var LLDPoles = FeatureSetByName($datastore,'Pole',['ObjectID','SUBTYPE_CODE','Pole_ID','Pole_GUID','Pole_Type','Pole_Tag','Pole_Owner','Exist_Ground','Prop_Ground'],true)
+//Equipment
+var EQs = FeatureSetByName($datastore,'Equipment',['ObjectID','SUBTYPE_CODE','WORK_ORDER_ID','EQUIP_ID','Equip_GUID','STATUS','ENVIRONMENT','Relative_Location','PLACED_ADDRESS','EQUIPMENT_TYPE','Split_Ratio','OUTPUT_PORTS','Stub_Length','PON_Count'],true)
+var MSTs = Filter(EQs,""SUBTYPE_CODE IN (3,4,5,6) And STATUS <> 'Existing'"")
+var FLs = Filter(EQs,""SUBTYPE_CODE = 8 And STATUS <> 'Existing'"")
+var SPLTs = Filter(EQs,""SUBTYPE_CODE IN (7,10,11,12,13,14) And STATUS <> 'Existing'"")
+var FDHs = Filter(EQs,""SUBTYPE_CODE = 9 And STATUS <> 'Existing'"")
+var SPLCLs = FeatureSetByName($datastore,'Splice_Closure',['ObjectID','SUBTYPE_CODE','SPLCL_ID','SPLCL_GUID','STATUS','ENVIRONMENT','PLACE_ADDRESS'],true)
+var Splices = Filter(SPLCLs,""SUBTYPE_CODE <> 7 And STATUS <> 'Existing'"")
+var NAPs = Filter(SPLCLs,""SUBTYPE_CODE = 7 And STATUS <> 'Existing'"")
+//Cables
+var Cables = FeatureSetByName($datastore,'Transmedia',['ObjectID','SUBTYPE_CODE','CALCULATED_LENGTH','Adjusted_Length','Cable_ID','Cable_GUID','Total_Fibers','Network_Type','Fiber_Count','PON_Count',
+                                                       'Cable_Series','Environment','Transmedia_Type','Cable_Type','Cable_Structure','Toneable','Status'],true)
+var Feeds = Filter(Cables,""SUBTYPE_CODE NOT IN (10,11,12) And Network_Type = 'Feeder' And STATUS <> 'Existing'"")
+var Dists = Filter(Cables,""SUBTYPE_CODE NOT IN (10,11,12) And Network_Type = 'Distribution' And STATUS <> 'Existing'"")
+var Tails = Filter(Cables,""SUBTYPE_CODE = 11 And STATUS <> 'Existing'"")
+var Drops = Filter(Cables,""SUBTYPE_CODE = 12 And STATUS <> 'Existing'"")
+var SLs =  FeatureSetByName($datastore,'Slack_Loop',['ObjectID','SUBTYPE_CODE','Length_Adjustment','Slack_Loop_ID','Slack_Loop_GUID','Status','Cable_ID','Cable_GUID','Equipment_ID','Equipment_GUID'],true)
+//Conduits
+var CONs = FeatureSetByName($datastore,'Conduit',['ObjectID','SUBTYPE_CODE','Calculated_Length','CON_ID','CON_GUID','Status','Duct_Size','Duct_Schedule','Duct_Material'],true)
+//Clusters
+var FDAs = FeatureSetByName($datastore,'FDA',['ObjectID','GlobalID','WORK_ORDER_ID'],true)
+var SAs = FeatureSetByName($datastore,'Serving_Area',['ObjectID','GlobalID','ASSOC_EQUIPMENT'],true)
+var EQSAs = Filter(SAs,""SUBTYPE_CODE = 2"")
+var MDUSAs = Filter(SAs,""SUBTYPE_CODE = 4"")
+//Others
+var DPs = FeatureSetByName($datastore,'Demand_Point',['ObjectID','SUBTYPE_CODE','Address','Address_Type','AddNum_Pre','Add_Number','AddNum_Suf','St_PreMod','St_PreDir','St_PreTyp','St_Name','St_PosTyp','St_PosDir','St_PosMod','Unit',
+                                                      'City','County','State','Zip_Code','Zip_Code4'],true)
+var Strands = FeatureSetByName($datastore,'Strand',['ObjectID'],true)
+var ProjDets = First(FeatureSetByName($datastore,'Project_Details',['*'],true))
+var IQGDets = First(FeatureSetByName($datastore,'IQGeo_Details',['CO_Location','CO_CLLI','PSA_Num','PSA_ProjNum'],true))
+//IQGeo Feature Classes
+var UGRs = FeatureSetByName($datastore,'ug_route_IQGeo',['*'],true)
+var OHRs = FeatureSetByName($datastore,'oh_route_IQGeo',['*'],true)
+var manholes = FeatureSetByName($datastore,'manhole_IQGeo',['*'],true)
+var poles = FeatureSetByName($datastore,'pole_IQGeo',['*'],true)
+var rjuncs = FeatureSetByName($datastore,'mywcom_route_junction_IQGeo',['*'],true)
+var cabinets = FeatureSetByName($datastore,'cabinet_IQGeo',['*'],true)
+var fiberpps = FeatureSetByName($datastore,'fiber_patch_panel_IQGeo',['*'],true)
+var fibersplts = FeatureSetByName($datastore,'fiber_splitter_IQGeo',['*'],true)
+var fibertaps = FeatureSetByName($datastore,'fiber_tap_IQGeo',['*'],true)
+var fibercables = FeatureSetByName($datastore,'fiber_cable_IQGeo',['*'],true)
+var fibersegs = FeatureSetByName($datastore,'mywcom_fiber_segment_IQGeo',['*'],true)
+var fiberslacks = FeatureSetByName($datastore,'mywcom_fiber_slack_IQGeo',['*'],true)
+var conduits = FeatureSetByName($datastore,'conduit_IQGeo',['*'],true)
+var spliceclosures = FeatureSetByName($datastore,'splice_closure_IQGeo',['*'],true)
+var distclusts = FeatureSetByName($datastore,'distribution_cluster_IQGeo',['*'],true)
+var dropclusts = FeatureSetByName($datastore,'drop_cluster_IQGeo',['*'],true)
+var mdubounds = FeatureSetByName($datastore,'mdu_boundary_IQGeo',['*'],true)
+var DateCur = TimeStamp()
+var DateProj = Text(DateAdd(DateCur,30,'days'),'Y-M-D')
+//Errors
+var ERRORS = []
+//MIGRATE EQUIPMENT
+if ($feature.IQGeo_Tools=='Migrate_Equipment') {
+  var Etaps = []
+  for (var E in fibertaps) {Push(Etaps,E.ref_GUID)}
+  var Esplices = []
+  for (var E in spliceclosures) {Push(Esplices,E.ref_GUID)}
+  Console('\n--BEGIN PROCESSING--\n')
+  //Terminals
+  var fibertapadds = []
+  var fibertapupdates = []
+  for (var F in MSTs) {
+    var FOID = F.ObjectID; var FGUID = F.EQUIP_GUID
+    var PSA = F.WORK_ORDER_ID; var RelLoc = F.Relative_Location; var PAdd = F.PLACED_ADDRESS; var Env = F.ENVIRONMENT
+    Console('  FOID: '+FOID)
+    //Define fiber_tap data
+    var Name = RelLoc+' '+PAdd
+    var PONs = Replace(Replace(F.PON_Count,':',' '),'-',' to ')
+    var FRC = iif(Env=='Aerial','822C','85C')
+    var Stub = iif(F.Stub_Length==null,iif(Env=='Aerial','10OT','10OT'),F.Stub_Length+'OT')
+    var Ports = Text(F.OUTPUT_PORTS)
+    var Spec = 'fiber_tap_spec/EVOLV'+Ports+Stub
+    var Template = 'FST EQUIPMENT ['+Ports+'] PORT'
+    var ID = 'fiber_tap/'+Text(FOID)
+    var fibertapdata = {'attributes':{'id':ID,'name':Name,'specification':Spec,'n_fiber_ports':Ports,'template':Template,'frc':FRC,'notes':PONs,'ref_GUID':FGUID},'geometry':Geometry(f)}
+    if (!Includes(Etaps,FGUID)) {Push(fibertapadds,fibertapdata)}
+    Console('\n  -NEXT FDH-\n')
+  }
+  //Splices
+  var spliceadds = []
+  var spliceupdates = []
+  for (var F in Splices) {
+    var FOID = F.ObjectID; var FGUID = F.SPLCL_GUID
+    var Name = Replace(F.SPLCL_ID,':',''); var ST = F.SUBTYPE_CODE; var Env = F.ENVIRONMENT
+    Console('  FOID: '+FOID)
+    //if (Count(Intersects(F,FDHs))>0) {continue}//Skip if splices are at PFP Loc
+    //Define splice_closure data
+    var Specs = {'2':'FOSC450B6','3':'FOSC450C6','4':'FOSC450D6','5':'FOSC600'}
+    var FRC = iif(Env=='Aerial','822C','85C')
+    var Spec = 'splice_closure_spec/'+Specs[Text(ST)]
+    var ID = 'splice_closure/'+Text(FOID)
+    var splicedata = {'attributes':{'id':ID,'name':Name,'specification':Spec,'frc':FRC,'ref_GUID':FGUID},'geometry':Geometry(f)}
+    if (!Includes(Esplices,FGUID)) {Push(spliceadds,splicedata)}
+    Console('\n  -NEXT SPLICE-\n')
+  }
+  Console('\n'+'fibertapadds: [' + Count(fibertapadds) + ']')
+  for (var key in fibertapadds) {Console(key + ':' + fibertapadds[key])}
+  Console('\n'+'fibertapupdates: [' + Count(fibertapupdates) + ']')
+  for (var key in fibertapupdates) {Console(key + ':' + fibertapupdates[key])}
+  Console('\n'+'spliceadds: [' + Count(spliceadds) + ']')
+  for (var key in spliceadds) {Console(key + ':' + spliceadds[key])}
+  Console('\n'+'spliceupdates: [' + Count(spliceupdates) + ']')
+  for (var key in spliceupdates) {Console(key + ':' + spliceupdates[key])}
+  Console('\nERRORS:\n' + ERRORS)
+  return {
+    'result':iif(Count(ERRORS)!=0,iif(Count(Text(ERRORS))>5000,Left(Text(ERRORS),4997)+'...',ERRORS),'No Errors'),
+    'edit':[
+      {'className':'fiber_tap_IQGeo', 
+      'adds':fibertapadds},
+      {'className':'fiber_tap_IQGeo', 
+      'updates':fibertapupdates},
+      {'className':'splice_closure_IQGeo', 
+      'adds':spliceadds},
+      {'className':'splice_closure_IQGeo', 
+      'updates':spliceupdates}
+    ]
+  }
+}",0,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+IQGeo Tools 3,Migrate Conduit; Migrate Cables,CALCULATION,,IQGeo_Tools_Rules_3,True,False,False,True,"//LLD Features grouped by IQGeo feature
+//Routes
+var Spans = FeatureSetByName($datastore,'Span',['ObjectID','GlobalID','SUBTYPE_CODE','CALCULATED_LENGTH','FOC_COUNT','FOC_LIST','STRAND_LIST'],true)
+var UGSpans = Filter(Spans,""SUBTYPE_CODE = 2"")
+var OHSpans = Filter(Spans,""SUBTYPE_CODE = 3"")
+//Structures
+var UGSTRs = FeatureSetByName($datastore,'UG_Structure',['ObjectID','SUBTYPE_CODE','STR_ID','STR_GUID','STRUCTURE_TYPE','DIMENSIONS','STATUS','GROUNDED'],true)
+var STRs = Filter(UGSTRs,""SUBTYPE_CODE NOT IN (6,7,8,9,10,11,15) And STATUS <> 'Existing'"")
+var FDHSTR = Filter(UGSTRs,""SUBTYPE_CODE = 10 And STATUS <> 'Existing'"")
+var BPs = Filter(UGSTRs,""SUBTYPE_CODE = 8 And STATUS <> 'Existing'"")
+var LLDPoles = FeatureSetByName($datastore,'Pole',['ObjectID','SUBTYPE_CODE','Pole_ID','Pole_GUID','Pole_Type','Pole_Tag','Pole_Owner','Exist_Ground','Prop_Ground'],true)
+//Equipment
+var EQs = FeatureSetByName($datastore,'Equipment',['ObjectID','SUBTYPE_CODE','WORK_ORDER_ID','EQUIP_ID','Equip_GUID','STATUS','ENVIRONMENT','Relative_Location','PLACED_ADDRESS','EQUIPMENT_TYPE','Split_Ratio','OUTPUT_PORTS','Stub_Length','PON_Count'],true)
+var MSTs = Filter(EQs,""SUBTYPE_CODE IN (3,4,5,6) And STATUS <> 'Existing'"")
+var FLs = Filter(EQs,""SUBTYPE_CODE = 8 And STATUS <> 'Existing'"")
+var SPLTs = Filter(EQs,""SUBTYPE_CODE IN (7,10,11,12,13,14) And STATUS <> 'Existing'"")
+var FDHs = Filter(EQs,""SUBTYPE_CODE = 9 And STATUS <> 'Existing'"")
+var SPLCLs = FeatureSetByName($datastore,'Splice_Closure',['ObjectID','SUBTYPE_CODE','SPLCL_ID','SPLCL_GUID','STATUS','ENVIRONMENT','PLACE_ADDRESS','PON_Count','Cables_OUT'],true)
+var Splices = Filter(SPLCLs,""SUBTYPE_CODE <> 7 And STATUS <> 'Existing'"")
+var NAPs = Filter(SPLCLs,""SUBTYPE_CODE = 7 And STATUS <> 'Existing'"")
+//Cables
+var Cables = Filter(FeatureSetByName($datastore,'Transmedia',['ObjectID','SUBTYPE_CODE','CALCULATED_LENGTH','Adjusted_Length','Cable_ID','Cable_GUID','Total_Fibers','Network_Type','Fiber_Count','PON_Count',
+                                                       'Cable_Series','Environment','Transmedia_Type','Cable_Type','Cable_Structure','Toneable','Status'],true),""SUBTYPE_CODE <> 1"")
+var Feeds = Filter(Cables,""SUBTYPE_CODE NOT IN (10,11,12) And Network_Type = 'Feeder' And STATUS <> 'Existing'"")
+var Dists = Filter(Cables,""SUBTYPE_CODE NOT IN (10,11,12) And Network_Type = 'Distribution' And STATUS <> 'Existing'"")
+var Tails = Filter(Cables,""SUBTYPE_CODE = 11 And STATUS <> 'Existing'"")
+var Drops = Filter(Cables,""SUBTYPE_CODE = 12 And STATUS <> 'Existing'"")
+var SLs =  FeatureSetByName($datastore,'Slack_Loop',['ObjectID','SUBTYPE_CODE','Length_Adjustment','Slack_Loop_ID','Slack_Loop_GUID','Status','Cable_ID','Cable_GUID','Equipment_ID','Equipment_GUID'],true)
+//Conduits
+var CONs = FeatureSetByName($datastore,'Conduit',['ObjectID','SUBTYPE_CODE','Calculated_Length','CON_ID','CON_GUID','Status','Duct_Size','Duct_Schedule','Duct_Material','Duct_Content_Type','Duct_Content'],true)
+//Clusters
+var FDAs = FeatureSetByName($datastore,'FDA',['ObjectID','GlobalID','WORK_ORDER_ID'],true)
+var SAs = FeatureSetByName($datastore,'Serving_Area',['ObjectID','GlobalID','ASSOC_EQUIPMENT'],true)
+var EQSAs = Filter(SAs,""SUBTYPE_CODE = 2"")
+var MDUSAs = Filter(SAs,""SUBTYPE_CODE = 4"")
+//Others
+var DPs = FeatureSetByName($datastore,'Demand_Point',['ObjectID','SUBTYPE_CODE','Address','Address_Type','AddNum_Pre','Add_Number','AddNum_Suf','St_PreMod','St_PreDir','St_PreTyp','St_Name','St_PosTyp','St_PosDir','St_PosMod','Unit',
+                                                      'City','County','State','Zip_Code','Zip_Code4'],true)
+var Strands = FeatureSetByName($datastore,'Strand',['ObjectID'],true)
+var ProjDets = First(FeatureSetByName($datastore,'Project_Details',['*'],true))
+var IQGDets = First(FeatureSetByName($datastore,'IQGeo_Details',['CO_Location','CO_CLLI','PSA_Num','PSA_ProjNum'],true))
+//IQGeo Feature Classes
+var UGRs = FeatureSetByName($datastore,'ug_route_IQGeo',['*'],true)
+var OHRs = FeatureSetByName($datastore,'oh_route_IQGeo',['*'],true)
+var manholes = FeatureSetByName($datastore,'manhole_IQGeo',['*'],true)
+var poles = FeatureSetByName($datastore,'pole_IQGeo',['*'],true)
+var rjuncs = FeatureSetByName($datastore,'mywcom_route_junction_IQGeo',['*'],true)
+var cabinets = FeatureSetByName($datastore,'cabinet_IQGeo',['*'],true)
+var fiberpps = FeatureSetByName($datastore,'fiber_patch_panel_IQGeo',['*'],true)
+var fibersplts = FeatureSetByName($datastore,'fiber_splitter_IQGeo',['*'],true)
+var fibertaps = FeatureSetByName($datastore,'fiber_tap_IQGeo',['*'],true)
+var fibercables = FeatureSetByName($datastore,'fiber_cable_IQGeo',['*'],true)
+var fibersegs = FeatureSetByName($datastore,'mywcom_fiber_segment_IQGeo',['*'],true)
+var fiberslacks = FeatureSetByName($datastore,'mywcom_fiber_slack_IQGeo',['*'],true)
+var conduits = FeatureSetByName($datastore,'conduit_IQGeo',['*'],true)
+var spliceclosures = FeatureSetByName($datastore,'splice_closure_IQGeo',['*'],true)
+var distclusts = FeatureSetByName($datastore,'distribution_cluster_IQGeo',['*'],true)
+var dropclusts = FeatureSetByName($datastore,'drop_cluster_IQGeo',['*'],true)
+var mdubounds = FeatureSetByName($datastore,'mdu_boundary_IQGeo',['*'],true)
+var structures = [poles,manholes,rjuncs,cabinets]
+var DateCur = TimeStamp()
+var DateProj = Text(DateAdd(DateCur,30,'days'),'Y-M-D')
+//Errors
+var ERRORS = []
+//MIGRATE CONDUITS
+if ($feature.IQGeo_Tools=='Migrate_Conduits') {
+  var Econduits = []
+  for (var E in conduits) {Push(Econduits,E.ref_GUID)}
+  Console('\n--BEGIN PROCESSING--\n')
+  var conduitadds = []
+  var conduitupdates = []
+  //Conduits
+  for (var F in CONs) {
+    if (F.Status=='Existing') {continue}
+    var FOID = F.ObjectID; var FGUID = F.CON_GUID
+    Console('FOID: '+FOID)
+    var Dia = F.Duct_Size
+    var FRC = iif(Number(Dia)>2,'4C','845C')
+    var spec = 'conduit_spec/'
+    if (Dia=='4.00') {spec += '4"" HDPE'}
+    if (Dia=='2.50') {spec += '2.5"" PVC SCHEDULE 40'}
+    if (Dia=='1.25') {spec += 'INDU-1-5'}
+    //Split conduits to run from structure to structure
+    var Pts = Geometry(F)['paths'][0]
+    var segadds = []
+    var segPath = []
+    var segCt = 1
+    for (var Pt in Pts) {
+      var P = Pts[Pt]
+      var Px = P['x']; var Py = P['y']
+      Push(segPath,[Px,Py])
+      //Find stop/start points at structures
+      var SID = null
+      var UGSTR = First(Intersects(P,UGSTRs))
+      if (UGSTR!=null && Pt>0) {
+        for (var s in structures) {
+          var structure = structures[s]
+          var STR = First(Intersects(UGSTR,structure))
+          if (STR==null) {continue}
+          SID = STR.id
+          break
+        }
+        Console('  At vertex '+Text(Pt+1)+' is Structure: '+SID)
+        Console('  Segment Path:\n  '+segPath)
+        //Define segment data
+        var ID = 'conduit/'+Text(FOID)
+        var segID = 'conduit/'+Split(ID,'/')[1]+Text(segCt)
+        var seggeom = Polyline({'hasZ':false,'hasM':false,'paths':[segPath],'spatialReference':{'wkid':4326}})
+        var consegdata = {'attributes':{'id':segID,'frc':FRC,'specification':spec,'diameter':Dia,'owner':'GigaPower','ref_GUID':FGUID},'geometry':seggeom}
+        if (!Includes(Econduits,FGUID)) {Push(conduitadds,consegdata)}
+        segPath = [[Px,Py]]
+        segCt++
+      }
+    }
+    Console('\n  -NEXT CONDUIT-\n')
+  }
+  Console('\n'+'conduitadds: [' + Count(conduitadds) + ']')
+  for (var key in conduitadds) {Console(key + ':' + conduitadds[key])}
+  Console('\n'+'conduitupdates: [' + Count(conduitupdates) + ']')
+  for (var key in conduitupdates) {Console(key + ':' + conduitupdates[key])}
+  Console('\nERRORS:\n' + ERRORS)
+  return {
+    'result':iif(Count(ERRORS)!=0,iif(Count(Text(ERRORS))>5000,Left(Text(ERRORS),4997)+'...',ERRORS),'No Errors'),
+    'edit':[
+      {'className':'conduit_IQGeo', 
+      'adds':conduitadds},
+      {'className':'conduit_IQGeo', 
+      'updates':conduitupdates}
+    ]
+  }
+}
+//MIGRATE CABLES
+if ($feature.IQGeo_Tools=='Migrate_Cables') {
+  var Ecables = []
+  for (var E in fibercables) {Push(Ecables,E.ref_GUID)}
+  var Esplices = []
+  for (var E in spliceclosures) {Push(Esplices,E.ref_GUID)}
+  Console('\n--BEGIN PROCESSING--\n')
+  var cableadds = []
+  var cableupdates = []
+  var spliceadds = []
+  var spliceupdates = []
+  //Feeder and Distribution
+  for (var F in Cables) {
+    if (Includes([10,11,12,null],F.SUBTYPE_CODE) || F.Status=='Existing') {continue}
+    var FOID = F.ObjectID; var FGUID = F.Cable_GUID
+    Console('FOID: '+FOID)
+    var PONs = F.PON_Count
+    var TotFib = Text(F.Total_Fibers,'000')
+    var Env = iif(F.Environment==null,'Aerial',F.Environment)
+    var Len = F.Adjusted_Length
+    var Net = F.Network_Type
+    //Define cable spec
+    var spec = null
+    if (Includes(['RPX','ALTOS'],F.Cable_Series)) {
+      if (F.Cable_Type=='Armored') {
+        spec = 'FNAP-CBL-'+TotFib+iif(F.Cable_Series=='RPX','-T','EUC')
+      } else {
+        spec = 'FNAP-CBL-'+TotFib
+      }
+    }
+    if (Includes(['SST-Ribbon','RocketRibbon'],F.Cable_Series)) {
+      var model = iif(F.Cable_Type=='Armored','5BQ2M','5B92M')
+      spec = F.Cable_Type+' '+Text(F.Total_Fibers)+'f'
+      if (F.Cable_Series=='RocketRibbon') {
+        if (Includes(['576'],TotFib)) {
+          spec = model+'R-'+TotFib
+        }
+        if (Includes(['432'],TotFib) && F.Cable_Type=='Armored') {
+          spec = model+'R-'+TotFib
+        }
+      }
+    }
+    if (spec!=null) {spec = 'fiber_cable_spec/'+spec}
+    //Define cable data
+    var ID = 'fiber_cable/'+Text(FOID)
+    var FRC = iif(F.Environment=='Aerial','822C','85C')
+    var Pts = Geometry(f)['paths'][0]
+    var FPath = []
+    for (var Pt in Pts) {Push(FPath,[Pts[Pt]['x'],Pts[Pt]['y']])}
+    var cablegeom = Polyline({'hasZ':false,'hasM':false,'paths':[FPath],'spatialReference':{'wkid':4326}})
+    var cabledata = {'attributes':{'id':ID,'name':Replace(PONs,':',', '),'network_layer':Net,'owner':'GigaPower'/*,'type':'External'*/,'frc':FRC,
+                                   'specification':spec,'fiber_count':F.Total_Fibers,'directed':'false','length':Ceil(Len),'ref_GUID':FGUID},
+                     'geometry':cablegeom}
+    if (!Includes(Ecables,FGUID)) {Push(cableadds,cabledata)}
+    Console('\n  -NEXT CABLE-\n')
+  }
+  //Terminal Tails
+  for (var F in Tails) {
+    //if (F.Adjusted_Length==10) {continue}//Now need all tails
+    var FOID = F.ObjectID; var FGUID = F.Cable_GUID
+    Console('FOID: '+FOID)
+    var PONs = F.PON_Count; var PONrng = Split(Split(PONs,':')[1],'-')
+    var PONCt = Number(Replace(PONrng[1],'""',''))-Number(Replace(PONrng[0],'""',''))+1
+    Console(PONCt)
+    var TotFib = Text(PONCt,'000')
+    var Env = iif(F.Environment==null,'Aerial',F.Environment)
+    var Len = F.Adjusted_Length
+    var Net = F.Network_Type
+    //Define cable spec
+    var spec = 'fiber_cable_spec/'+Text(PONCt)+'F Tail'
+    //Define cable data
+    var ID = 'fiber_cable/'+Text(FOID)
+    var FRC = iif(F.Environment=='Aerial','822C','85C')
+    var Pts = Geometry(f)['paths'][0]
+    var FPath = []
+    for (var Pt in Pts) {Push(FPath,[Pts[Pt]['x'],Pts[Pt]['y']])}
+    var cablegeom = Polyline({'hasZ':false,'hasM':false,'paths':[FPath],'spatialReference':{'wkid':4326}})
+    var cabledata = {'attributes':{'id':ID,'name':'Tail '+Replace(PONs,':',', '),'network_layer':'Distribution','owner':'GigaPower'/*,'type':'External'*/,'frc':FRC,'specification':spec,'fiber_count':PONCt,
+                                   'directed':'false','length':Ceil(Len),'ref_GUID':FGUID},
+                     'geometry':cablegeom}
+    if (!Includes(Ecables,FGUID)) {Push(cableadds,cabledata)}
+    Console('\n  -NEXT TAIL-\n')
+  }
+  Console('\n'+'cableadds: [' + Count(cableadds) + ']')
+  for (var key in cableadds) {Console(key + ':' + cableadds[key])}
+  Console('\n'+'cableupdates: [' + Count(cableupdates) + ']')
+  for (var key in cableupdates) {Console(key + ':' + cableupdates[key])}
+  Console('\n'+'spliceadds: [' + Count(spliceadds) + ']')
+  for (var key in spliceadds) {Console(key + ':' + spliceadds[key])}
+  Console('\n'+'spliceupdates: [' + Count(spliceupdates) + ']')
+  for (var key in spliceupdates) {Console(key + ':' + spliceupdates[key])}
+  Console('\nERRORS:\n' + ERRORS)
+  return {
+    'result':iif(Count(ERRORS)!=0,iif(Count(Text(ERRORS))>5000,Left(Text(ERRORS),4997)+'...',ERRORS),'No Errors'),
+    'edit':[
+      {'className':'fiber_cable_IQGeo', 
+      'adds':cableadds},
+      {'className':'fiber_cable_IQGeo', 
+      'updates':cableupdates},
+      {'className':'splice_closure_IQGeo', 
+      'adds':spliceadds},
+      {'className':'splice_closure_IQGeo', 
+      'updates':spliceupdates}
+    ]
+  }
+}",0,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+IQGeo Tools 4,Migrate Slack; Migrate Splice Closures,CALCULATION,,IQGeo_Tools_Rules_4,True,False,False,True,"//LLD Features grouped by IQGeo feature
+//Routes
+var Spans = FeatureSetByName($datastore,'Span',['ObjectID','GlobalID','SUBTYPE_CODE','CALCULATED_LENGTH','FOC_COUNT','FOC_LIST','STRAND_LIST'],true)
+var UGSpans = Filter(Spans,""SUBTYPE_CODE = 2"")
+var OHSpans = Filter(Spans,""SUBTYPE_CODE = 3"")
+//Structures
+var UGSTRs = FeatureSetByName($datastore,'UG_Structure',['ObjectID','SUBTYPE_CODE','STR_ID','STR_GUID','STRUCTURE_TYPE','DIMENSIONS','STATUS','GROUNDED'],true)
+var STRs = Filter(UGSTRs,""SUBTYPE_CODE NOT IN (6,7,8,9,10,11,15) And STATUS <> 'Existing'"")
+var FDHSTR = Filter(UGSTRs,""SUBTYPE_CODE = 10 And STATUS <> 'Existing'"")
+var BPs = Filter(UGSTRs,""SUBTYPE_CODE = 8 And STATUS <> 'Existing'"")
+var LLDPoles = FeatureSetByName($datastore,'Pole',['ObjectID','SUBTYPE_CODE','Pole_ID','Pole_GUID','Pole_Type','Pole_Tag','Pole_Owner','Exist_Ground','Prop_Ground'],true)
+//Equipment
+var EQs = FeatureSetByName($datastore,'Equipment',['ObjectID','SUBTYPE_CODE','WORK_ORDER_ID','EQUIP_ID','Equip_GUID','STATUS','ENVIRONMENT','Relative_Location','PLACED_ADDRESS','EQUIPMENT_TYPE','Split_Ratio','OUTPUT_PORTS','Stub_Length','PON_Count'],true)
+var MSTs = Filter(EQs,""SUBTYPE_CODE IN (3,4,5,6) And STATUS <> 'Existing'"")
+var FLs = Filter(EQs,""SUBTYPE_CODE = 8 And STATUS <> 'Existing'"")
+var SPLTs = Filter(EQs,""SUBTYPE_CODE IN (7,10,11,12,13,14) And STATUS <> 'Existing'"")
+var FDHs = Filter(EQs,""SUBTYPE_CODE = 9 And STATUS <> 'Existing'"")
+var SPLCLs = FeatureSetByName($datastore,'Splice_Closure',['ObjectID','SUBTYPE_CODE','SPLCL_ID','SPLCL_GUID','STATUS','ENVIRONMENT','PLACE_ADDRESS','PON_Count'],true)
+var Splices = Filter(SPLCLs,""SUBTYPE_CODE <> 7 And STATUS <> 'Existing'"")
+var NAPs = Filter(SPLCLs,""SUBTYPE_CODE = 7 And STATUS <> 'Existing'"")
+//Cables
+var Cables = Filter(FeatureSetByName($datastore,'Transmedia',['ObjectID','SUBTYPE_CODE','CALCULATED_LENGTH','Adjusted_Length','Cable_ID','Cable_GUID','Total_Fibers','Network_Type','Fiber_Count','PON_Count',
+                                                       'Cable_Series','Environment','Transmedia_Type','Cable_Type','Cable_Structure','Toneable','Status'],true),""SUBTYPE_CODE <> 1"")
+var Feeds = Filter(Cables,""SUBTYPE_CODE NOT IN (10,11,12) And Network_Type = 'Feeder' And STATUS <> 'Existing'"")
+var Dists = Filter(Cables,""SUBTYPE_CODE NOT IN (10,11,12) And Network_Type = 'Distribution' And STATUS <> 'Existing'"")
+var Tails = Filter(Cables,""SUBTYPE_CODE = 11 And STATUS <> 'Existing'"")
+var Drops = Filter(Cables,""SUBTYPE_CODE = 12 And STATUS <> 'Existing'"")
+var SLs =  FeatureSetByName($datastore,'Slack_Loop',['ObjectID','SUBTYPE_CODE','Length_Adjustment','SlackLoop_ID','SlackLoop_GUID','Status','Cable_ID','Cable_GUID','Equipment_ID','Equipment_GUID'],true)
+//Conduits
+var CONs = FeatureSetByName($datastore,'Conduit',['ObjectID','SUBTYPE_CODE','Calculated_Length','CON_ID','CON_GUID','Status','Duct_Size','Duct_Schedule','Duct_Material','Duct_Content_Type','Duct_Content'],true)
+//Clusters
+var FDAs = FeatureSetByName($datastore,'FDA',['ObjectID','GlobalID','WORK_ORDER_ID'],true)
+var SAs = FeatureSetByName($datastore,'Serving_Area',['ObjectID','GlobalID','ASSOC_EQUIPMENT'],true)
+var EQSAs = Filter(SAs,""SUBTYPE_CODE = 2"")
+var MDUSAs = Filter(SAs,""SUBTYPE_CODE = 4"")
+//Others
+var DPs = FeatureSetByName($datastore,'Demand_Point',['ObjectID','SUBTYPE_CODE','Address','Address_Type','AddNum_Pre','Add_Number','AddNum_Suf','St_PreMod','St_PreDir','St_PreTyp','St_Name','St_PosTyp','St_PosDir','St_PosMod','Unit',
+                                                      'City','County','State','Zip_Code','Zip_Code4'],true)
+var Strands = FeatureSetByName($datastore,'Strand',['ObjectID'],true)
+var ProjDets = First(FeatureSetByName($datastore,'Project_Details',['*'],true))
+var IQGDets = First(FeatureSetByName($datastore,'IQGeo_Details',['CO_Location','CO_CLLI','PSA_Num','PSA_ProjNum'],true))
+//IQGeo Feature Classes
+var UGRs = FeatureSetByName($datastore,'ug_route_IQGeo',['*'],true)
+var OHRs = FeatureSetByName($datastore,'oh_route_IQGeo',['*'],true)
+var manholes = FeatureSetByName($datastore,'manhole_IQGeo',['*'],true)
+var poles = FeatureSetByName($datastore,'pole_IQGeo',['*'],true)
+var rjuncs = FeatureSetByName($datastore,'mywcom_route_junction_IQGeo',['*'],true)
+var cabinets = FeatureSetByName($datastore,'cabinet_IQGeo',['*'],true)
+var fiberpps = FeatureSetByName($datastore,'fiber_patch_panel_IQGeo',['*'],true)
+var fibersplts = FeatureSetByName($datastore,'fiber_splitter_IQGeo',['*'],true)
+var fibertaps = FeatureSetByName($datastore,'fiber_tap_IQGeo',['*'],true)
+var fibercables = FeatureSetByName($datastore,'fiber_cable_IQGeo',['*'],true)
+var fibersegs = FeatureSetByName($datastore,'mywcom_fiber_segment_IQGeo',['*'],true)
+var fiberslacks = FeatureSetByName($datastore,'mywcom_fiber_slack_IQGeo',['*'],true)
+var conduits = FeatureSetByName($datastore,'conduit_IQGeo',['*'],true)
+var spliceclosures = FeatureSetByName($datastore,'splice_closure_IQGeo',['*'],true)
+var distclusts = FeatureSetByName($datastore,'distribution_cluster_IQGeo',['*'],true)
+var dropclusts = FeatureSetByName($datastore,'drop_cluster_IQGeo',['*'],true)
+var mdubounds = FeatureSetByName($datastore,'mdu_boundary_IQGeo',['*'],true)
+var structures = [poles,manholes,rjuncs,cabinets]
+var DateCur = TimeStamp()
+var DateProj = Text(DateAdd(DateCur,30,'days'),'Y-M-D')
+//Errors
+var ERRORS = []
+//MIGRATE SLACK LOOPS
+if ($feature.IQGeo_Tools=='Migrate_Slack') {
+  var Eslacks = []
+  for (var E in fiberslacks) {Push(Eslacks,E.ref_GUID)}
+  var Emdus = []
+  for (var E in mdubounds) {Push(Emdus,E.ref_GUID)}
+  Console('\n--BEGIN PROCESSING--\n')
+  var slackadds = []
+  var slackupdates = []
+  var mduadds = []
+  var mduupdates = []
+  //Slack Loops
+  for (var F in SLs) {
+    if (F.Status=='Existing' || F.SUBTYPE_CODE==null) {continue}
+    var FOID = F.ObjectID; var FGUID = F.SlackLoop_GUID
+    Console('FOID: '+FOID)
+    var Len = F.Length_Adjustment; var ST = F.SUBTYPE_CODE
+    var CGUID = F.Cable_GUID; var EQGUID = F.Equipment_GUID
+    //Find parent cable
+    var CID = null
+    var parCable = First(Intersects(F,Filter(fibercables,""ref_GUID = @CGUID"")))
+    if (parCable!=null) {CID = parCable.id}
+    //Find potential Future Loops
+    var EQID = null; var parEQ = null; var MDUPONs = null; var MDUID = null
+    if (EQGUID!=null) {parEQ = First(Filter(FLs,""EQUIP_GUID = @EQGUID""))}
+    if (parEQ!=null) {
+      EQID = parEQ.ObjectID
+      MDUPONs = parEQ.PON_Count
+      var MDUSA = First(Filter(EQSAs,""ASSOC_EQUIPMENT = '""+Text(EQID)+""'""))
+      if (MDUSA!=null) {
+        MDUID = 'mdu_boundary/'+Text(MDUSA.ObjectID)
+        if (Count(Contains(MDUSA,Filter(DPs,""SUBTYPE_CODE NOT IN (6,7)"")))==0) {MDUPONs = 'BCL Only '+MDUPONs}
+        //Define boundary geometry
+        var Pts = Geometry(MDUSA)['rings'][0]
+        var FPath = []
+        for (var Pt in Pts) {Push(FPath,[Pts[Pt]['x'],Pts[Pt]['y']])}
+        var polygeom = Polygon({'hasZ':false,'hasM':false,'rings':[FPath],'spatialReference':{'wkid':4326}})
+        var mdudata = {'attributes':{'id':MDUID,'name':Replace(Replace(MDUPONs,':',' '),'-',' to '),'ref_GUID':FGUID},'geometry':polygeom}
+        if (!Includes(Emdus,EQGUID)) {Push(mduadds,mdudata)}
+      }
+    }
+    //Define slack data
+    var ID = 'mywcom_fiber_slack/'+Text(FOID)
+    var slackdata = {'attributes':{'id':ID,'type':iif(ST==4,'riser','slack'),'length':Ceil(Len),'cable':CID,'notes':MDUPONs,'mdu_boundary':MDUID,'ref_GUID':FGUID},'geometry':Geometry(F)}
+    if (!Includes(Eslacks,FGUID)) {Push(slackadds,slackdata)}
+    Console('\n  -NEXT SLACK LOOP-\n')
+  }
+  Console('\n'+'slackadds: [' + Count(slackadds) + ']')
+  for (var key in slackadds) {Console(key + ':' + slackadds[key])}
+  Console('\n'+'slackupdates: [' + Count(slackupdates) + ']')
+  for (var key in slackupdates) {Console(key + ':' + slackupdates[key])}
+  Console('\n'+'mduadds: [' + Count(mduadds) + ']')
+  for (var key in mduadds) {Console(key + ':' + mduadds[key])}
+  Console('\n'+'mduupdates: [' + Count(mduupdates) + ']')
+  for (var key in mduupdates) {Console(key + ':' + mduupdates[key])}
+  Console('\nERRORS:\n' + ERRORS)
+  return {
+    'result':iif(Count(ERRORS)!=0,iif(Count(Text(ERRORS))>5000,Left(Text(ERRORS),4997)+'...',ERRORS),'No Errors'),
+    'edit':[
+      {'className':'mywcom_fiber_slack_IQGeo', 
+      'adds':slackadds},
+      {'className':'mywcom_fiber_slack_IQGeo', 
+      'updates':slackupdates},
+      {'className':'mdu_boundary_IQGeo', 
+      'adds':mduadds},
+      {'className':'mdu_boundary_IQGeo', 
+      'updates':mduupdates}
+    ]
+  }
+}
+
+//MIGRATE SPLICE CLOSURES
+if ($feature.IQGeo_Tools=='Migrate_Splices') {
+  var Esplices = []
+  for (var E in spliceclosures) {Push(Esplices,E.ref_GUID)}
+  Console('\n--BEGIN PROCESSING--\n')
+  var spliceadds = []
+  var spliceupdates = []
+  //Reverse Tethered Laterals
+  Console('Reverse Tethered Laterals')
+  for (var F in Cables) {
+    if (F.Transmedia_Type!='FlexNAP Preterm Lateral') {continue}
+    var FOID = F.ObjectID; var FGUID = F.Cable_GUID
+    Console('FOID: '+FOID)
+    var PONs = F.PON_Count
+    //Define splice closure spec
+    var spec = 'splice_closure_spec/OPTI_TIP SPLICE'
+    //Define splice data
+    var NAP = First(Filter(NAPs,""Cables_OUT LIKE '%""+FGUID+""%'""))
+    if (NAP==null) {Console('Cable OID '+FOID+' has no associated NAP!'); return {'errorMessage':'Cable OID '+FOID+' has no associated NAP!'}}
+    if (NAP!=null) {
+      var NAPGUID = NAP.SPLCL_GUID
+      var NAPID = 'splice_closure/'+Text(NAP.ObjectID)      
+      var splicedata = {'attributes':{'id':NAPID,'name':'Overmold '+Replace(Replace(PONs,':',' '),'-',' to '),'specification':spec,'ref_GUID':NAPGUID},'geometry':Geometry(NAP)}
+      if (!Includes(Esplices,NAPGUID)) {Push(spliceadds,splicedata)}
+    }
+    Console('\n  -NEXT CABLE-\n')
+  }
+  //Long Tails
+  Console('Long Tails')
+  for (var F in Tails) {
+    var FOID = F.ObjectID; var FGUID = F.Cable_GUID
+    Console('FOID: '+FOID)
+    var PONs = F.PON_Count
+    //Define splice closure spec
+    var spec = 'splice_closure_spec/OPTI_TIP SPLICE'
+    //Define splice data
+    var NAP = First(Filter(NAPs,""Cables_OUT LIKE '%""+FGUID+""%'""))
+    if (NAP==null) {Console('Tail OID '+FOID+' has no associated NAP!'); return {'errorMessage':'Tail OID '+FOID+' has no associated NAP!'}}
+    if (NAP!=null) {
+      var NAPGUID = NAP.SPLCL_GUID
+      var NAPID = 'splice_closure/'+Text(NAP.ObjectID)      
+      var splicedata = {'attributes':{'id':NAPID,'name':'Tail Overmold '+Replace(Replace(PONs,':',' '),'-',' to '),'specification':spec,'ref_GUID':NAPGUID},'geometry':Geometry(NAP)}
+      if (!Includes(Esplices,NAPGUID)) {Push(spliceadds,splicedata)}
+    }
+    Console('\n  -NEXT TAIL-\n')
+  }
+  Console('\n'+'spliceadds: [' + Count(spliceadds) + ']')
+  for (var key in spliceadds) {Console(key + ':' + spliceadds[key])}
+  Console('\n'+'spliceupdates: [' + Count(spliceupdates) + ']')
+  for (var key in spliceupdates) {Console(key + ':' + spliceupdates[key])}
+  Console('\nERRORS:\n' + ERRORS)
+  return {
+    'result':iif(Count(ERRORS)!=0,iif(Count(Text(ERRORS))>5000,Left(Text(ERRORS),4997)+'...',ERRORS),'No Errors'),
+    'edit':[
+      {'className':'splice_closure_IQGeo', 
+      'adds':spliceadds},
+      {'className':'splice_closure_IQGeo', 
+      'updates':spliceupdates}
+    ]
+  }
+}",0,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+IQGeo Tools 5,Validate Data,CALCULATION,,IQGeo_Tools_Rules_5,True,False,False,True,"//LLD Features grouped by IQGeo feature
+//Routes
+var Spans = FeatureSetByName($datastore,'Span',['ObjectID','GlobalID','SUBTYPE_CODE','CALCULATED_LENGTH','FOC_COUNT','FOC_LIST','STRAND_LIST'],true)
+var UGSpans = Filter(Spans,""SUBTYPE_CODE = 2"")
+var OHSpans = Filter(Spans,""SUBTYPE_CODE = 3"")
+//Structures
+var UGSTRs = FeatureSetByName($datastore,'UG_Structure',['ObjectID','SUBTYPE_CODE','STR_ID','STR_GUID','STRUCTURE_TYPE','DIMENSIONS','STATUS','GROUNDED'],true)
+var STRs = Filter(UGSTRs,""SUBTYPE_CODE NOT IN (6,7,8,9,10,11,15) And STATUS <> 'Existing'"")
+var FDHSTR = Filter(UGSTRs,""SUBTYPE_CODE = 10 And STATUS <> 'Existing'"")
+var BPs = Filter(UGSTRs,""SUBTYPE_CODE = 8 And STATUS <> 'Existing'"")
+var LLDPoles = FeatureSetByName($datastore,'Pole',['ObjectID','SUBTYPE_CODE','Pole_ID','Pole_GUID','Pole_Type','Pole_Tag','Pole_Owner','Exist_Ground','Prop_Ground'],true)
+//Equipment
+var EQs = FeatureSetByName($datastore,'Equipment',['ObjectID','SUBTYPE_CODE','WORK_ORDER_ID','EQUIP_ID','Equip_GUID','STATUS','ENVIRONMENT','Relative_Location','PLACED_ADDRESS','EQUIPMENT_TYPE','Split_Ratio','OUTPUT_PORTS','Stub_Length','PON_Count'],true)
+var MSTs = Filter(EQs,""SUBTYPE_CODE IN (3,4,5,6) And STATUS <> 'Existing'"")
+var FLs = Filter(EQs,""SUBTYPE_CODE = 8 And STATUS <> 'Existing'"")
+var SPLTs = Filter(EQs,""SUBTYPE_CODE IN (7,10,11,12,13,14) And STATUS <> 'Existing'"")
+var FDHs = Filter(EQs,""SUBTYPE_CODE = 9 And STATUS <> 'Existing'"")
+var SPLCLs = FeatureSetByName($datastore,'Splice_Closure',['ObjectID','SUBTYPE_CODE','SPLCL_ID','SPLCL_GUID','STATUS','ENVIRONMENT','PLACE_ADDRESS'],true)
+var Splices = Filter(SPLCLs,""SUBTYPE_CODE <> 7 And STATUS <> 'Existing'"")
+var NAPs = Filter(SPLCLs,""SUBTYPE_CODE = 7 And STATUS <> 'Existing'"")
+//Cables
+var Cables = FeatureSetByName($datastore,'Transmedia',['ObjectID','SUBTYPE_CODE','CALCULATED_LENGTH','Adjusted_Length','Cable_ID','Cable_GUID','Total_Fibers','Network_Type','Fiber_Count','PON_Count',
+                                                       'Cable_Series','Environment','Transmedia_Type','Cable_Type','Cable_Structure','Toneable','Status'],true)
+var Feeds = Filter(Cables,""SUBTYPE_CODE NOT IN (10,11,12) And Network_Type = 'Feeder' And STATUS <> 'Existing'"")
+var Dists = Filter(Cables,""SUBTYPE_CODE NOT IN (10,11,12) And Network_Type = 'Distribution' And STATUS <> 'Existing'"")
+var Tails = Filter(Cables,""SUBTYPE_CODE = 11 And STATUS <> 'Existing'"")
+var Drops = Filter(Cables,""SUBTYPE_CODE = 12 And STATUS <> 'Existing'"")
+var SLs =  FeatureSetByName($datastore,'Slack_Loop',['ObjectID','SUBTYPE_CODE','Length_Adjustment','SlackLoop_ID','SlackLoop_GUID','Status','Cable_ID','Cable_GUID','Equipment_ID','Equipment_GUID'],true)
+//Conduits
+var CONs = FeatureSetByName($datastore,'Conduit',['ObjectID','SUBTYPE_CODE','Calculated_Length','CON_ID','CON_GUID','Status','Duct_Size','Duct_Schedule','Duct_Material','Duct_Content_Type','Duct_Content'],true)
+//Clusters
+var FDAs = FeatureSetByName($datastore,'FDA',['ObjectID','GlobalID','WORK_ORDER_ID'],true)
+var SAs = FeatureSetByName($datastore,'Serving_Area',['ObjectID','GlobalID','ASSOC_EQUIPMENT'],true)
+var EQSAs = Filter(SAs,""SUBTYPE_CODE = 2"")
+var MDUSAs = Filter(SAs,""SUBTYPE_CODE = 4"")
+//Others
+var DPs = FeatureSetByName($datastore,'Demand_Point',['ObjectID','SUBTYPE_CODE','Address','Address_Type','AddNum_Pre','Add_Number','AddNum_Suf','St_PreMod','St_PreDir','St_PreTyp','St_Name','St_PosTyp','St_PosDir','St_PosMod','Unit',
+                                                      'City','County','State','Zip_Code','Zip_Code4'],true)
+var Strands = FeatureSetByName($datastore,'Strand',['ObjectID'],true)
+var ProjDets = First(FeatureSetByName($datastore,'Project_Details',['*'],true))
+var IQGDets = First(FeatureSetByName($datastore,'IQGeo_Details',['CO_Location','CO_CLLI','PSA_Num','PSA_ProjNum'],true))
+//IQGeo Feature Classes
+var UGRs = FeatureSetByName($datastore,'ug_route_IQGeo',['*'],true)
+var OHRs = FeatureSetByName($datastore,'oh_route_IQGeo',['*'],true)
+var manholes = FeatureSetByName($datastore,'manhole_IQGeo',['*'],true)
+var poles = FeatureSetByName($datastore,'pole_IQGeo',['*'],true)
+var rjuncs = FeatureSetByName($datastore,'mywcom_route_junction_IQGeo',['*'],true)
+var cabinets = FeatureSetByName($datastore,'cabinet_IQGeo',['*'],true)
+var fiberpps = FeatureSetByName($datastore,'fiber_patch_panel_IQGeo',['*'],true)
+var fibersplts = FeatureSetByName($datastore,'fiber_splitter_IQGeo',['*'],true)
+var fibertaps = FeatureSetByName($datastore,'fiber_tap_IQGeo',['*'],true)
+var fibercables = FeatureSetByName($datastore,'fiber_cable_IQGeo',['*'],true)
+var fibersegs = FeatureSetByName($datastore,'mywcom_fiber_segment_IQGeo',['*'],true)
+var fiberslacks = FeatureSetByName($datastore,'mywcom_fiber_slack_IQGeo',['*'],true)
+var fiberconns = FeatureSetByName($datastore,'mywcom_fiber_connection_IQGeo',['*'],true)
+var conduits = FeatureSetByName($datastore,'conduit_IQGeo',['*'],true)
+var spliceclosures = FeatureSetByName($datastore,'splice_closure_IQGeo',['*'],true)
+var distclusts = FeatureSetByName($datastore,'distribution_cluster_IQGeo',['*'],true)
+var dropclusts = FeatureSetByName($datastore,'drop_cluster_IQGeo',['*'],true)
+var mdubounds = FeatureSetByName($datastore,'mdu_boundary_IQGeo',['*'],true)
+var structures = [poles,manholes,rjuncs,cabinets]
+var DateCur = TimeStamp()
+var DateProj = Text(DateAdd(DateCur,30,'days'),'Y-M-D')
+//Errors
+var ERRORS = []
+
+//LogErrWar('Empty Set','Warning','There are no features in this set.',ErrWarDesc,ErrWars,FeatName,FOID)//format to enter
+function LogErrWar(Name,Type,Description,DescDict,ErrWarDict,ErrWarSet,FeatureOID) {
+  var ErrWar = [Name,Type]; var Dict = DescDict
+  if (!HasKey(Dict,Text(ErrWar[0]))) {Dict[Text(ErrWar[0])]=Description}
+  Dict = ErrWarDict[Text(ErrWarSet)][Text(ErrWar[1])]
+  if (!HasKey(Dict,Text(ErrWar[0]))) {Dict[Text(ErrWar[0])] = []}
+  if (!Includes(Dict[Text(ErrWar[0])],FeatureOID)) {Push(Dict[Text(ErrWar[0])],FeatureOID)}
+  ErrWarDict[Text(ErrWarSet)]['Ct'][iif(Type=='Error',0,1)]++
+}
+//ErrWarMSG(ErrWarDesc,ErrWars,FeatName)//format to enter
+function ErrWarMSG(DescDict,ErrWarDict,ErrWarSet) {
+  for (var key in ErrWarDict) {
+    if (Text(key)!=Text(ErrWarSet)) {continue}
+    var ErrWar = ErrWarDict[key]
+    var Errors = ErrWar['Error']; var ErrCt = ErrWar['Ct'][0]
+    var Warnings = ErrWar['Warning']; var WarCt = ErrWar['Ct'][1]
+    Console('\n\\\n >------')
+    Console('  '+key+': Errors and Warnings found:')
+    Console('  Errors ('+ErrCt+'):')
+    for (var Errkey in Errors) {
+      var Errs = Errors[Errkey]
+      Console('    '+Errkey+' - '+DescDict[Errkey])
+      for (var E in Errs) {
+        Console('      '+Errs[E])
+      }
+    }
+    Console('  Warnings ('+WarCt+'):')
+    for (var Warkey in Warnings) {
+      var Wars = Warnings[Warkey]
+      Console('    '+Warkey+' - '+DescDict[Warkey])
+      for (var W in Wars) {
+        Console('      '+Wars[W])
+      }
+    }
+    Console(' >------\n/')
+  }
+}
+function ErrWarMSGAll(DescDict,ErrWarDict) {
+  Console('\nSUMMARY OF ERRORS/WARNINGS:')
+  var ReturnVal = null
+  for (var key in ErrWarDict) {
+    var ErrWar = ErrWarDict[key]
+    var Errors = ErrWar['Error']; var ErrCt = ErrWar['Ct'][0]
+    var Warnings = ErrWar['Warning']; var WarCt = ErrWar['Ct'][1]
+    if (ErrCt==0 && WarCt==0) {continue}
+    Console('\n>------\n'); ReturnVal+='\n>------\n'
+    Console('\n'+key+': Errors and Warnings found:'); ReturnVal+='\n'+key+': Errors and Warnings found:'
+    Console('\nErrors ('+ErrCt+'):'); ReturnVal+='\nErrors ('+ErrCt+'):'
+    for (var Errkey in Errors) {
+      var Errs = Errors[Errkey]
+      Console('\n  '+Errkey+' - '+DescDict[Errkey]); ReturnVal+='\n  '+Errkey+' - '+DescDict[Errkey]
+      for (var E in Errs) {
+        Console('\n    '+Errs[E]); ReturnVal+='\n    '+Errs[E]
+      }
+    }
+    Console('\nWarnings ('+WarCt+'):'); ReturnVal+='\nWarnings ('+WarCt+'):'
+    for (var Warkey in Warnings) {
+      var Wars = Warnings[Warkey]
+      Console('\n  '+Warkey+' - '+DescDict[Warkey]); ReturnVal+='\n  '+Warkey+' - '+DescDict[Warkey]
+      for (var W in Wars) {
+        Console('\n    '+Wars[W]); ReturnVal+='\n    '+Wars[W]
+      }
+    }
+  }
+  Console(iif(ReturnVal==null,'No Errors/Warnings Found! Success!',ReturnVal))
+  return iif(ReturnVal==null,'No Errors/Warnings Found! Success!',ReturnVal)
+}
+
+if ($feature.IQGeo_Tools=='Validate') {
+  var ErrWarDesc = {}
+  var ErrWars = {'ug_route':{'Error':{},'Warning':{},'Ct':[0,0]},'oh_route':{'Error':{},'Warning':{},'Ct':[0,0]},'manhole':{'Error':{},'Warning':{},'Ct':[0,0]},'pole':{'Error':{},'Warning':{},'Ct':[0,0]},
+                 'route_junction':{'Error':{},'Warning':{},'Ct':[0,0]},'cabinet':{'Error':{},'Warning':{},'Ct':[0,0]},'fiber_patch_panel':{'Error':{},'Warning':{},'Ct':[0,0]},
+                 'fiber_splitter':{'Error':{},'Warning':{},'Ct':[0,0]},'fiber_tap':{'Error':{},'Warning':{},'Ct':[0,0]},'fiber_cable':{'Error':{},'Warning':{},'Ct':[0,0]},
+                 'fiber_segment':{'Error':{},'Warning':{},'Ct':[0,0]},'fiber_slack':{'Error':{},'Warning':{},'Ct':[0,0]},'fiber_connection':{'Error':{},'Warning':{},'Ct':[0,0]},
+                 'conduit':{'Error':{},'Warning':{},'Ct':[0,0]},'splice_closure':{'Error':{},'Warning':{},'Ct':[0,0]},'distribution_cluster':{'Error':{},'Warning':{},'Ct':[0,0]},
+                 'drop_cluster':{'Error':{},'Warning':{},'Ct':[0,0]},'mdu_boundary':{'Error':{},'Warning':{},'Ct':[0,0]}}
+  var Sets = [UGRs,OHRs,manholes,poles,rjuncs,cabinets,fiberpps,fibersplts,fibertaps,fibercables,fibersegs,fiberslacks,fiberconns,conduits,spliceclosures,distclusts,dropclusts,mdubounds]
+  var Errors=0; var Warnings=0
+  var fieldlists = {}
+  var ReqFields = {'ug_route':['id','in_structure','out_structure'],
+                   'oh_route':['id','in_structure','out_structure'],
+                   'manhole':['id','name','specification','usage','ground','owner','frc'],
+                   'pole':['id','ground'],
+                   'route_junction':['id'],
+                   'cabinet':['id','name','specification','frc','psa'/*,'ecd'*/],//Excel breaks ECD format
+                   'fiber_patch_panel':['id','name','specification','type','n_fiber_ports','template','function','frc','root_housing','housing'],
+                   'fiber_splitter':['id','slot','n_fiber_in_ports','n_fiber_out_ports','template','specification','frc','root_housing','housing'],
+                   'fiber_tap':['id','name','specification','template','n_fiber_ports','frc','root_housing','housing'],
+                   'fiber_cable':['id','owner','name','specification','fiber_count','network_layer','frc','directed'],
+                   'fiber_segment':['id','cable','in_structure','out_structure','directed','root_housing','housing'],
+                   'fiber_slack':['id','cable','type','length','root_housing','housing'],
+                   'fiber_connection':['id','in_high','in_low','in_object','in_side','out_high','out_low','out_object','out_side','splice','housing'],
+                   'conduit':['id','diameter','frc','root_housing','housing'],
+                   'splice_closure':['id','root_housing','housing'],
+                   'distribution_cluster':['id','type','pfp_name','olt_name'],
+                   'drop_cluster':['id','term_name'],
+                   'mdu_boundary':['id']
+                   }
+  var Structures = [manholes,poles,rjuncs,cabinets]
+  for (var Setitem in Sets) {
+    var Set = Sets[Setitem]
+    var SetName = GetFeatureSetInfo(Set)['className']
+    var FeatName = Replace(Replace(SetName,'_IQGeo',''),'mywcom_','')
+
+    //Set field list by FeatureSet
+    fieldlists[Text(SetName)]=[]
+    if (First(Set)!=null) {
+      var flds = Schema(First(Set))['fields']
+      for (var fld in flds) {Push(fieldlists[Text(SetName)],flds[fld]['name'])}
+    }
+    var ReqFs = ReqFields[Text(FeatName)]
+
+    Console('\n'+'<--> Checking for Errors/Warnings with '+FeatName+' ['+SetName+'] features. <-->')
+    Console('\n  '+'Fields:'+'\n  '+fieldlists[Text(SetName)])
+
+    //
+    //BEGIN FEATURESET LEVEL DATA VALIDATION
+    //----------
+
+    //Check for empty set
+    if (Count(Set)==0) {
+      Console('Empty Set')
+      LogErrWar('Empty Set','Warning','There are no features in this set.',ErrWarDesc,ErrWars,FeatName,0)
+    }
+
+    //
+    //BEGIN FEATURE LEVEL DATA VALIDATION
+    //----------
+    for (var F in Set) {
+      var FOID = F.ObjectID; var FID = F.id
+      var Geom = Geometry(F); var GeoType = Schema(F)['geometryType']
+      var fields = fieldlists[Text(SetName)]
+      Console('\n  '+'Validating '+FID+' (OID: '+FOID+').')
+
+      //CHECK GEOMETRY
+      if (GeoType=='esriGeometryPoint') {
+        var ints = 0
+        for (var i in Structures) {
+          var strs = Structures[i]
+          ints += Count(Intersects(F,strs))
+        }
+        if (ints!=1) {
+          Console('Point Snap Issue')
+          LogErrWar('Point Snap Issue','Error','There should only be one (1) manhole/pole/route_junction at these points.',ErrWarDesc,ErrWars,FeatName,FOID)
+        }
+        if (!Within(Geometry(F),Geometry(First(distclusts)))) {
+          Console('Not in PSA')
+          LogErrWar('Not in PSA','Warning','These might belong in the PSA boundary.',ErrWarDesc,ErrWars,FeatName,FOID)
+        }
+        if (FeatName=='fiber_tap') {
+          if (Count(Intersects(F,dropclusts))==0) {
+            Console('Not in SA')
+            LogErrWar('Not in SA','Error','These Terminals are not in the SA boundary.',ErrWarDesc,ErrWars,FeatName,FOID)
+          }
+          if (Count(Intersects(F,dropclusts))>1) {
+            Console('Multiple SAs')
+            LogErrWar('Multiple SAs','Warning','These Terminals are in multiple SA boundaries. Verify proper relationships.',ErrWarDesc,ErrWars,FeatName,FOID)
+          }
+        }
+      }
+      if (GeoType=='esriGeometryPolyline') {
+        if (Includes(fields,'root_housing') && Includes(fields,'housing')) {
+          if (Find('slack',F.housing)<0) {
+            var roothousing = F.root_housing
+            var rootFC = iif(Find('oh',F.housing)>=0,ohrs,ugrs)
+            var root = First(Filter(rootFC,""id = '""+roothousing+""'""))
+            if (root!=null) {
+              var rootGeom = Geometry(root)
+              if (Count(Geom['paths'][0])!=Count(rootGeom['paths'][0])) {
+                Console('Mismatched Root Geometry')
+                LogErrWar('Mismatched Root Geometry','Error','The geometry of the root_housing feature and this feature doesn\'t match.',ErrWarDesc,ErrWars,FeatName,FOID)
+              }
+            }
+            var STRCt = 0
+            for (var i in Structures) {
+              var strs = Structures[i]
+              STRCt += Count(Intersects(F,strs))
+            }
+            if (STRCt!=2 && F.in_structure!=F.out_structure) {
+              Console('Structure Count Off')
+              LogErrWar('Structure Count Off','Error','The geometry intersects more or less than two (2) structures.',ErrWarDesc,ErrWars,FeatName,FOID+' ('+STRCt+')')
+            }
+          }
+        }
+        if (FeatName=='fiber_cable') {
+          //Distribution only below here
+          if (F.network_layer=='Distribution') {
+            if (!Within(Geometry(F),Geometry(First(distclusts)))) {
+              Console('Not in PSA')
+              LogErrWar('Not in PSA','Error','These are not in the PSA boundary.',ErrWarDesc,ErrWars,FeatName,FOID)
+            }
+          }
+        }
+      }
+      if (GeoType=='esriGeometryPolygon') {
+        if (FeatName!='distribution_cluster') {
+          if (!Within(Geometry(F),Geometry(First(distclusts)))) {
+            Console('Not in PSA')
+            LogErrWar('Not in PSA','Error','These are not in the PSA boundary.',ErrWarDesc,ErrWars,FeatName,FOID)
+          }
+        }
+      }
+      //CHECK FOR REQUIRED FIELD DATA
+      for (var ReqF in ReqFs) {
+        var Req = ReqFs[ReqF]
+        if (IsEmpty(F[Req])) {
+          Console('Null field/ '+Req)
+          LogErrWar(Text('Null field/ '+Req),'Error','The field '+Req+' is <Null>.',ErrWarDesc,ErrWars,FeatName,FOID)
+        }
+      }
+      //CHECK FOR BAD FEATURE RELATIONSHIPS
+      if (FeatName=='fiber_segment') {
+        if (F.in_segment==F.out_segment) {
+          var CID = F.cable
+          var Cable = First(Filter(fibercables,""id = '""+CID+""'""))
+          if (Cable!=null) {
+            if (!Equals(Geometry(F),Geometry(Cable))) {
+              Console('Same In/Out Segment')
+              LogErrWar('Same In/Out Segment','Error','Re-order Segments; in_segment and out_segment are the same.',ErrWarDesc,ErrWars,FeatName,FOID)
+            }
+          }
+        }
+      }
+      if (FeatName=='fiber_cable') {
+        var CID = F.id
+        if (Find('Tail',F.specification)<0) {
+          var orderedsegCt = 0
+          var orderedsegList = []
+          var segs = Filter(fibersegs,""cable = '""+CID+""'"")
+          var segCt = Count(segs)
+          var seg = First(Filter(fibersegs,""cable = '""+CID+""' And in_segment IS NULL""))
+          if (seg==null) {
+            Console('Multiple Start Segments')
+            LogErrWar('Multiple Start Segments','Error','These Cables have multiple cable_segments with <Null> in_segment values.',ErrWarDesc,ErrWars,FeatName,FOID)
+          }
+          while (seg!=null) {
+            Push(orderedsegList,'\''+seg.id+'\'')
+            orderedsegCt++
+            var outseg = seg.out_segment
+            if (outseg==null) {break}
+            seg = First(Filter(fibersegs,""id = '""+outseg+""' And id NOT IN (""+Concatenate(orderedsegList,',')+"")""))
+          }
+          if (segCt!=Count(orderedsegList)) {
+            var segDispList = []
+            for (var seg in orderedsegList) {
+              var segid = Replace(orderedsegList[seg],'mywcom_fiber_segment','seg')
+              Push(segDispList,segid)
+            }
+            Console('Segments out of Sequence')
+            LogErrWar('Segments out of Sequence','Error','These Cables\' cable_segments are out of order. Check where list ends.',ErrWarDesc,ErrWars,FeatName,FOID+' - Segment List: '+Concatenate(segDispList,','))
+            var missingsegs = []
+            for (var seg in segs) {
+              if (!Includes(orderedsegList,'\''+seg.id+'\'')) {Push(missingsegs,Replace(seg.id,'mywcom_fiber_segment','seg'))}
+            }
+            if (Count(missingsegs)>0) {
+              Console('Segments Missing from Sequence')
+              LogErrWar('Segments Missing from Sequence','Error','These Cables\' cable_segments are not in the sequence.',ErrWarDesc,ErrWars,FeatName,FOID+' - Missing segments: '+Concatenate(missingsegs,','))
+            }
+          }
+        }
+      }
+      if (FeatName=='fiber_connection') {
+        var inFS = iif(Find('segment',F.in_object)>=0,fibersegs,fibertaps)
+        var inObject = First(Filter(inFS,""id = '""+F.in_object+""'""))
+        var outFS = iif(Find('segment',F.out_object)>=0,fibersegs,fibertaps)
+        var outObject = First(Filter(outFS,""id = '""+F.out_object+""'""))
+        if (inObject==null || outObject==null) {
+          Console('Connection IN/OUT don\'t Exist')
+          LogErrWar('Connection IN/OUT don\'t Exist','Error','The in/out_object doesn\'t exist.',ErrWarDesc,ErrWars,FeatName,FOID)
+        }
+        if (!Intersects(F,inObject) || !Intersects(F,outObject)) {
+          Console('IN/OUT Not at this Location')
+          LogErrWar('IN/OUT Not at this Location','Error','The in/out_objects aren\'t both at the location of the connection.',ErrWarDesc,ErrWars,FeatName,FOID)
+        }
+      }
+      //END FEATURE
+    }
+    //ErrWarMSG(ErrWarDesc,ErrWars,FeatName)
+    //END FEATURESET
+  }
+  //END TOOL PROCESSING
+  var Summary = ErrWarMSGAll(ErrWarDesc,ErrWars)
+  return {'errorMessage':iif(Summary==null,'No Errors/Warnings Found! Success!',Summary)}
+}",0,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+IQGeo Tool Reset,,CALCULATION,,IQGeo_Tools,True,False,False,True,"if ($feature.IQGeo_Tools != 'Standby') {
+    return 'Standby'
+}",0,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"

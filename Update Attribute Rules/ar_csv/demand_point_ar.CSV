@@ -1,0 +1,34 @@
+﻿NAME,DESCRIPTION,TYPE,SUBTYPE,FIELD,ISEDITABLE,TRIGGERINSERT,TRIGGERDELETE,TRIGGERUPDATE,SCRIPTEXPRESSION,ERRORNUMBER,ERRORMESSAGE,EXCLUDECLIENTEVALUATION,ISENABLED,BATCH,SEVERITY,TAGS,CATEGORY,CHECKPARAMETERS
+Work Order ID,,CALCULATION,,Work_Order_ID,True,True,False,True,"var FDA = First(Intersects($feature,FeatureSetByName($datastore,'FDA',[""WORK_ORDER_ID""],true)))
+iif(IsEmpty(FDA),null,FDA.WORK_ORDER_ID)",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Drop Cable Adjust,,CALCULATION,,Comments,True,False,False,True,"var oldGeo = geometry($originalFeature)
+var newGeo = geometry($feature)
+var Dropupdates = []
+if (!Equals(newGeo, oldGeo)) {
+  var Drops = Filter(FeatureSetByName($datastore,'Transmedia',['ObjectID','NETWORK_TYPE'],true),""NETWORK_TYPE = 'Drop'"")
+  var Pt = [newgeo['x'],newgeo['y'],0,null]
+  var intDrops = Touches(Drops,oldGeo)
+  Console(Count(intDrops))
+  if (Count(intDrops)>0) {
+    for (var D in intDrops) {
+      var DOID = D.ObjectID
+      Console(DOID)
+      var DPts = Geometry(D)['paths'][0]
+      Console(DPts)
+      var DPath = []
+      for (var DPt in DPts) {if (DPt==Count(DPts)-1) {continue}; Push(DPath,[DPts[DPt]['x'],DPts[DPt]['y'],0,null])}
+      Push(DPath,Pt)
+      Console(DPath)
+      var newDGeom = Polyline({'hasZ':true,'hasM':true,'paths':[DPath],'spatialReference':{'wkid':4326}})
+      var Dropdata = {'ObjectID':DOID,'geometry':newDGeom}
+      Push(Dropupdates,Dropdata)
+    }
+  }
+  return {
+    'result':$feature.Comments,
+    'edit':[
+      {'className':'Transmedia',
+      'updates':Dropupdates}
+    ]
+  }
+}",,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"

@@ -1,0 +1,129 @@
+Sub PlaceCheckboxes()
+
+Dim i As Integer
+Dim rowHeight As Double
+Dim checkBoxWidth As Double
+Dim checkBoxHeight As Double
+Dim checkBoxLeft As Double
+Dim cumulativeHeight As Double
+Dim lastColumnWithData As Integer
+Dim linkedColumn As Integer
+
+checkBoxWidth = 20 ' Width of the checkbox
+checkBoxHeight = 21 ' Height of the checkbox
+checkBoxLeft = 15 ' Distance from the left edge of the column
+
+' Find the last column with data
+lastColumnWithData = ActiveSheet.Cells(1, Columns.Count).End(xlToLeft).Column
+
+' Offset the last column by two to the right for the linked column
+linkedColumn = lastColumnWithData + 15
+
+cumulativeHeight = 0 ' Initialize cumulative height
+
+For i = 1 To 100 ' Adjust loop to iterate only up to row 100
+
+    rowHeight = ActiveSheet.Rows(i).Height
+
+    ' Update the cumulative height for each row
+    cumulativeHeight = cumulativeHeight + rowHeight
+
+    ' Check if the row height is 15, the cell in column A is not part of a merged cell, and column A is empty
+    If rowHeight = 15 And Not ActiveSheet.Cells(i, 1).MergeCells And IsEmpty(ActiveSheet.Cells(i, 1).Value) Then
+
+        ' Position for the checkbox
+        Dim checkBoxTop As Double
+
+        checkBoxTop = cumulativeHeight - rowHeight + (rowHeight - checkBoxHeight) / 2
+
+        ' Add the checkbox
+        With ActiveSheet.CheckBoxes.Add(checkBoxLeft, checkBoxTop, checkBoxWidth, checkBoxHeight)
+            .Value = xlOff
+            .Characters.Text = ""
+            .LinkedCell = ActiveSheet.Cells(i, linkedColumn).Address ' Link to the calculated cell
+            .Display3DShading = False
+        End With
+
+    End If
+
+Next i
+
+' Add the dropdown to the first row of the linked column
+With ActiveSheet.Cells(1, linkedColumn).Validation
+    .Delete ' Clear any existing validation
+    .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Operator:= _
+        xlBetween, Formula1:="True, False"
+    .IgnoreBlank = True
+    .InCellDropdown = True
+    .ShowInput = True
+    .ShowError = True
+End With
+
+End Sub
+
+
+Sub ResetCheckboxes()
+    Dim ws As Worksheet
+    Dim cb As checkBox
+    Dim dropdownValue As String
+    
+    ' Set the worksheet where the CheckBoxes are located
+    Set ws = ThisWorkbook.Sheets("Sheet1") ' Change "Sheet1" to the name of your sheet
+    
+    ' Get the value selected in the dropdown (cell A1)
+    dropdownValue = ws.Range("A1").Value
+    
+    ' Check if the selected dropdown value is "Yes"
+    If dropdownValue = "Yes" Then
+        ' Loop through all CheckBoxes on the worksheet
+        For Each cb In ws.CheckBoxes
+            ' Reset the CheckBox to False
+            cb.Value = False
+        Next cb
+    End If
+End Sub
+
+
+
+
+
+
+
+Sub RemoveAllCheckBoxes()
+    Dim chkBox As Object
+
+    For Each chkBox In ActiveSheet.CheckBoxes
+        chkBox.Delete
+    Next chkBox
+
+End Sub
+
+Sub SetRowHeights()
+
+    Dim ws As Worksheet
+    Set ws = ActiveSheet
+    Dim i As Integer
+    Dim j As Integer
+    Dim rowHasBoldText As Boolean
+
+    For i = 1 To 100 ' Adjust for the first 100 rows
+        rowHasBoldText = False
+
+        ' Check each cell in the row
+        For j = 1 To ws.Columns.Count
+            If ws.Cells(i, j).Font.Bold = True Then
+                rowHasBoldText = True
+                Exit For ' Exit the loop if bold text is found
+            End If
+        Next j
+
+        ' Set row height
+        If rowHasBoldText Then
+            ws.Rows(i).rowHeight = 20
+        Else
+            ws.Rows(i).rowHeight = 15
+        End If
+    Next i
+
+End Sub
+

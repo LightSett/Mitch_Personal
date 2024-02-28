@@ -1,0 +1,502 @@
+﻿NAME,DESCRIPTION,TYPE,SUBTYPE,FIELD,ISEDITABLE,TRIGGERINSERT,TRIGGERDELETE,TRIGGERUPDATE,SCRIPTEXPRESSION,ERRORNUMBER,ERRORMESSAGE,EXCLUDECLIENTEVALUATION,ISENABLED,BATCH,SEVERITY,TAGS,CATEGORY,CHECKPARAMETERS
+Total Outputs,,CALCULATION,,TotalOutputs,True,True,False,True,"if ($feature.SUBTYPE_CODE==5) {return $feature.TotalOutputs}
+var EQs = Filter(FeatureSetByName($datastore,'Equipment',['ObjectID','EQUIPMENT_TYPE','OUTPUT_PORTS'],true),""SUBTYPE_CODE IN (3,4,5,6,8)"")
+var Rs = FeatureSetByName($datastore,'RoutingHelper',['ObjectID','SUBTYPE_CODE','TotalOutputs','RouteSize'],true)
+var Lats = Filter(Rs,""SUBTYPE_CODE IN (2,3,4) AND ObjectID <> ""+Number($feature.OBJECTID)+"""")
+var Outputs = 0
+Console(Outputs)
+var Pts = Geometry($feature)['paths'][0]
+for (var Pt in Pts) {
+  if (Pt==0) {continue}
+  var P = Pts[Pt]
+  var intEQs = Intersects(P,EQs)
+  var intRs = Touches(P,Lats)
+  for (var I in intEQs) {
+    Console(I.ObjectID)
+    Outputs += Number(I.OUTPUT_PORTS)
+    Console(Outputs)
+  }
+  for (var I in intRs) {
+    var adder = I.TotalOutputs
+    if (I.SUBTYPE_CODE==3) {adder = Ceil(I.TotalOutputs/12)*12}
+    Outputs += adder
+    Console(Outputs)
+  }
+}
+return Outputs",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Preterm Lateral Size,,CALCULATION,,RouteSize,True,True,False,True,"if ($feature.SUBTYPE_CODE==5) {return $feature.RouteSize}
+var Outputs = $feature.TotalOutputs
+var CS = iif($feature.SUBTYPE_CODE==3,'Preterm',iif($feature.Cable_Series==null,'ALTOS',$feature.Cable_Series))
+var Type = iif(Includes([1,2],$feature.SUBTYPE_CODE),'FlexNAP Cable','FlexNAP Preterm Lateral')
+if (!Includes(['RPX','ALTOS'],CS) && Includes([1,2],$feature.SUBTYPE_CODE)) {Type='nonFlexNAP Cable'}
+if ($feature.SUBTYPE_CODE==4) {return $feature.TotalOutputs}
+var CableSizes = {'FlexNAP Cable':{'ALTOS':[24,48,72,144,216,432],'RPX':[24,48,72,144]},
+                  'FlexNAP Preterm Lateral':{'Preterm':[24,48]},
+                  'nonFlexNAP Cable':{'SST-Ribbon':[24,48,72,144,216],'RocketRibbon':[288,360,432,576,864,1728,3456]}}
+var CableSize = 0
+var SizeOptions = CableSizes[Type][CS]
+for (var S in SizeOptions) {
+  if (Outputs>SizeOptions[S]) {continue}
+  CableSize = SizeOptions[S]
+  break
+}
+return CableSize",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Lateral Fiber Start,,CALCULATION,,FiberStart,True,True,False,True,"if (Includes([1,5],$feature.SUBTYPE_CODE) || $feature.FiberStart!=null) {return $feature.FiberStart}
+return $feature.RouteSize",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Assign to List,,CALCULATION,,AssignToList,True,False,False,True,"if ($feature.SUBTYPE_CODE==5) {return $feature.AssignToList}
+function ConvArr(fieldval) {
+  var Arr = iif(Find('\""',fieldval)>=0,
+                Split(Replace(Replace(Replace(fieldval,'\""',''),'[',''),']',''),','),
+                Split(Replace(Replace(fieldval,'[',''),']',''),','))
+  Arr = iif(Text(Arr)=='[""""]',[],Arr)
+  return Arr
+}
+var EQs = Filter(FeatureSetByName($datastore,'Equipment',['ObjectID','SUBTYPE_CODE','EQUIPMENT_TYPE','OUTPUT_PORTS'],true),""SUBTYPE_CODE IN (3,4,5,6,8)"")
+var Rs = FeatureSetByName($datastore,'RoutingHelper',['ObjectID','SUBTYPE_CODE','TotalOutputs','RouteSize'],true)
+var Lats = Filter(Rs,""SUBTYPE_CODE IN (2,3,4) AND ObjectID <> ""+Number($feature.OBJECTID)+"""")
+var EQTypes = {'3':'MST','4':'MST','5':'MST','6':'MST','8':'FL'}
+var RTypes = {'2':'Lat','3':{'1':'SRT','2':'DRT','3':'TRT','4':'QRT'},'4':'Tail'}
+var RList = []
+var FLList = []
+var FieldList = []
+Console($feature.OBJECTID)
+var Pts = Geometry($feature)['paths'][0]
+for (var Pt in Pts) {
+  if (Pt==0) {continue}
+  var P = Pts[Pt]
+  var intEQs = Intersects(P,EQs)
+  var intRs = Touches(P,Lats)
+  var PLats = []
+  for (var I in intRs) {
+    var IOID = I.ObjectID
+    Push(PLats,Text(IOID))
+  }
+  for (var I in intEQs) {
+    var IOID = I.ObjectID; var Outs = I.OUTPUT_PORTS; var ST = I.SUBTYPE_CODE
+    var IType = EQTypes[Text(ST)]
+    var Alloc = iif(IType=='FL',Ceil(Outs/12)*12,Outs)
+    Console('\n  '+IOID+' - '+IType+' ('+Alloc+')')
+    var Idata = [Text(IOID),IType,Alloc]
+    var Idata_txt = Replace(Text(Idata),',',';')
+    iif(IType=='FL',Push(FLList,Idata_txt),Push(RList,Idata_txt))
+    Console('  '+RList)
+  }
+  for (var I in intRs) {
+    var IOID = I.ObjectID; var Outs = I.TotalOutputs; var RSize = I.RouteSize; var ST = I.SUBTYPE_CODE
+    var Tethers = Ceil(Outs/12)
+    var IType = iif(ST==3,RTypes[Text(ST)][Text(Tethers)],RTypes[Text(ST)])
+    var Alloc = 0
+    if (ST==2) {Alloc = Ceil(Outs/12)*12}
+    if (ST==3) {Alloc = Ceil(Outs/12)*12}
+    if (ST==4) {Alloc = RSize}
+    Console('\n  '+IOID+' - '+IType+' ('+Alloc+')')
+    var Idata = [Text(IOID),IType,Alloc]
+    var Idata_txt = Replace(Text(Idata),',',';')
+    iif(ST==2,Push(FieldList,Idata_txt),Push(RList,Idata_txt))
+    Console('  '+RList)
+  }
+}
+for (var Item in FieldList) {
+  var I = FieldList[Item]
+  Push(RList,I)
+}
+for (var Item in FLList) {
+  var I = FLList[Item]
+  Push(RList,I)
+}
+Console('\n'+Text(RList))
+Console('\n'+Replace(Replace(Text(RList),'\\',''),'""',''))
+return Replace(Replace(Text(RList),'\\',''),'""','')",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Assign to Order,,CALCULATION,,AssignToOrder,True,True,False,True,"//if ($feature.AssignToOrder!=null) {return $feature.AssignToOrder}
+/*
+function ConvArr(fieldval) {
+  var Arr = iif(Find('\""',fieldval)>=0,
+                Split(Replace(Replace(Replace(fieldval,'\""',''),'[',''),']',''),','),
+                Split(Replace(Replace(fieldval,'[',''),']',''),','))
+  Arr = iif(Text(Arr)=='[""""]',[],Arr)
+  return Arr
+}
+var RList = ConvArr($feature.AssignToList)
+Console(RList)
+var ROrder = []
+for (var Route in RList) {
+  var R = Split(RList[Route],';')
+  Console(R)
+  Push(ROrder,iif(Includes(['MST','FL'],R[1]),'E','R')+Text(Number(R[0])))
+}
+var Order = Replace(Replace(Replace(Text(ROrder),'\""',''),'[',''),']','')
+Console(Order)
+return Order
+*/
+var oldATL = $originalfeature.AssignToList; var newATL = $feature.AssignToList
+if (oldATL==newATL && $feature.AssignToOrder!=null) {return $feature.AssignToOrder}
+function ConvArr(fieldval) {
+  var Arr = iif(Find('\""',fieldval)>=0,
+                Split(Replace(Replace(Replace(fieldval,'\""',''),'[',''),']',''),','),
+                Split(Replace(Replace(fieldval,'[',''),']',''),','))
+  Arr = iif(Text(Arr)=='[""""]',[],Arr)
+  return Arr
+}
+//var ATO = ConvArr(newATL)
+Console(newATL)
+return newATL",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Allocations,,CALCULATION,,Allocations,True,True,False,True,"//if ($feature.Allocations!=null) {return $feature.Allocations}
+function ConvArr(fieldval) {
+  var Arr = iif(Find('\""',fieldval)>=0,
+                Split(Replace(Replace(Replace(fieldval,'\""',''),'[',''),']',''),','),
+                Split(Replace(Replace(fieldval,'[',''),']',''),','))
+  Arr = iif(Text(Arr)=='[""""]',[],Arr)
+  return Arr
+}
+var EQs = Filter(FeatureSetByName($datastore,'Equipment',['ObjectID','EQUIPMENT_TYPE','OUTPUT_PORTS'],true),""SUBTYPE_CODE IN (3,4,5,6,8)"")
+var Rs = FeatureSetByName($datastore,'RoutingHelper',['ObjectID','SUBTYPE_CODE','TotalOutputs','RouteSize','FiberStart','CountStart','AssignToList','AssignToOrder'],true)
+var FOID = $feature.OBJECTID; var CS = $feature.Cable_Series
+var PONS = Number(iif($feature.CountStart==null,864,$feature.CountStart))
+var FibS = Number(iif($feature.FiberStart==null,$feature.RouteSize,$feature.FiberStart))
+var AssList = ConvArr($feature.AssignToOrder)
+Console('Route: '+FOID+'\nStarts at fiber '+FibS+' with PON Count '+PONS)
+var PONcur = PONS
+var Fibcur = FibS
+var FibAss = 0
+var TAPs = 0
+var Allocations = []
+for (var Ass in AssList) {
+  var Note = null
+  var A = Split(AssList[Ass],';')
+  var FC = iif(Includes(['MST','FL'],A[1]),'Equipment','Route')
+  var Type = A[1]
+  var AOID = Number(A[0])
+  var Fibers = Number(A[2])
+  if (Fibers==6 && Type=='MST' && CS=='RPX') {Fibers = 8; Note += ' |ISSUE| --RPX: UPSIZE 6 to 8--'}
+  Console('  >>>\n  '+Type+' (OID: '+AOID+') - Requires '+Fibers+' fibers allocated.')
+  Console('  Currently allocated: '+FibAss+' fibers across '+TAPs+' TAPs.')
+  //Find fiber ranges needing to be assigned prior to preterm laterals
+  if (Includes(['SRT','DRT','TRT','QRT'],Type)) {
+    var Div = iif(Fibcur%12==0,'Divisible','NOT Divisible')
+    var Diff = iif(Fibcur%12==0,null,Fibcur%12)
+    Console('  '+Div+iif(Fibcur%12==0,null,' - Need to fill '+Diff+' fibers.'))
+    if (Fibcur%12!=0) {
+      var PONrng = Text(PONcur-(Diff-1))+'-'+Text(PONcur)
+      var Fibrng = Text(Fibcur-(Diff-1))+'-'+Text(Fibcur)
+      var Ct = Diff
+      var Alloc = '('+PONrng+') '+Fibrng+' ['+Ct+'] |ISSUE| --MUST FILL THESE--'
+      Insert(Allocations,0,Alloc)
+      PONcur-=Diff
+      Fibcur-=Diff
+      FibAss+=Diff
+    }
+  }
+  //Identify active spares to be upsized after tethered connections if not divisible before assigning field splices/future loops
+  if (Includes(['Lat','FL'],Type)) {
+    var Div = iif(Fibcur%12==0,'Divisible','NOT Divisible')
+    var Diff = iif(Fibcur%12==0,null,Fibcur%12)
+    Console('  '+Div+iif(Fibcur%12==0,null,Diff+' active spare fibers to be filled.'))
+    if (Fibcur%12!=0) {
+      var PONrng = Text(PONcur-(Diff-1))+'-'+Text(PONcur)
+      var Fibrng = Text(Fibcur-(Diff-1))+'-'+Text(Fibcur)
+      var Ct = Diff
+      var Alloc = '('+PONrng+') '+Fibrng+' ['+Ct+'] |ISSUE| --MUST FILL TUBE/RIBBON--'
+      Insert(Allocations,0,Alloc)
+      PONcur-=Diff
+      Fibcur-=Diff
+      FibAss+=Diff
+    }
+  }
+  //Define fiber and PON range for EQ/Route
+  var PONrng = Text(PONcur-(Fibers-1))+'-'+Text(PONcur)
+  var Fibrng = Text(Fibcur-(Fibers-1))+'-'+Text(Fibcur)
+  var Ct = Fibers
+  //Check for breaking rules on ALTOS 216/432
+  if (Includes([216,432],FibS) && CS=='ALTOS') {
+    if (FibS==216) {
+      var FibLow = Number(iif(Find('-',Fibrng)>=0,Split(Fibrng,'-')[0],Fibrng))
+      var FibHigh = Number(iif(Find('-',Fibrng)>=0,Split(Fibrng,'-')[1],Fibrng))
+      if ((FibLow<=72 && 72<FibHigh) && (FibLow<73 && 73<=FibHigh)) {Note += ' |ISSUE| --ENSURE NAP SPLITS AROUND 72/73--'}
+      if (TAPs>25 && (FibHigh<=12 || FibLow<=12)) {Note += ' |ISSUE| --AVOID FIBERS 1-12--'}
+    }
+    if (FibS==432) {
+      var FibLow = iif(Find('-',Fibrng)>=0,Number(Split(Fibrng,'-')[0]),Number(Fibrng))
+      var FibHigh = iif(Find('-',Fibrng)>=0,Number(Split(Fibrng,'-')[1]),Number(Fibrng))
+      if ((FibLow<=216 && 216<=FibHigh) || FibHigh<=216) {Note = ' |ISSUE| --COMBINE ACTIVES ≤ 216 AS FIELD SPLICE--'}
+      if (TAPs>25 && (FibHigh<=228 || FibLow<=228)) {Note += ' |ISSUE| --AVOID FIBERS 217-228--'}
+    }
+  }
+  //Check for tethered connections on non-FlexNAP cables
+  if (!Includes(['ALTOS','RPX','SST Flat Dielectric Drop'],CS)) {
+    if (Includes(['MST','SRT','DRT','TRT','QRT','TAIL'],Type)) {
+      Note += ' |ISSUE| --NO TETHERED CONNECTIONS ON nonFNAP CABLES--'
+    }
+  }
+  //Add assignment to list of allocations
+  var Alloc = '('+PONrng+') '+Fibrng+' ['+Ct+'] to '+Type+' (OID: '+AOID+')'+iif(Note==null,null,Note)
+  Insert(Allocations,0,Alloc)
+  //Adjust current fiber and PON and update total assigned and number of TAPs
+  PONcur-=Fibers
+  Fibcur-=Fibers
+  FibAss+=Fibers
+  TAPs+=Ceil(Fibers/24)
+  Console('    Allocations:')
+  for (var All in Allocations) {Console('    '+Allocations[All])}
+}
+//Identify active spares to be filled by upsizing after all other assignments to fill last ribbon/buffer
+var Div = iif(Fibcur%12==0,'Divisible','NOT Divisible')
+var Diff = iif(Fibcur%12==0,null,Fibcur%12)
+Console('  '+Div+iif(Fibcur%12==0,null,Diff+' active spare fibers.'))
+if (Fibcur%12!=0) {
+  var PONrng = Text(PONcur-(Diff-1))+'-'+Text(PONcur)
+  var Fibrng = Text(Fibcur-(Diff-1))+'-'+Text(Fibcur)
+  var Ct = Diff
+  var Alloc = '('+PONrng+') '+Fibrng+' ['+Ct+'] |ISSUE| --MUST FILL TUBE/RIBBON--'
+  Insert(Allocations,0,Alloc)
+  PONcur-=Diff
+  Fibcur-=Diff
+  FibAss+=Diff
+}
+if (Fibcur==0) {return Concatenate(Allocations,'\n')}
+//Assign remainder of cable as dead range if fibers remain
+var Fibrng = Text(1)+'-'+Text(Fibcur)
+var Ct = Fibcur
+var Alloc = '(DEAD) '+Fibrng+' ['+Ct+'] dead/dark fibers'
+Insert(Allocations,0,Alloc)
+Fibcur-=Ct
+Console('\nPONcur: '+PONcur)
+Console('Fibcur: '+Fibcur)
+Console('\nFinal Allocations:')
+for (var All in Allocations) {Console(Allocations[All])}
+return Concatenate(Allocations,'\n')",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Lateral Count Start,,CALCULATION,,CountStart,True,False,False,True,"if (Includes([1,5],$feature.SUBTYPE_CODE)) {return $feature.CountStart}
+function ConvArr(fieldval) {
+  var Arr = iif(Find('\""',fieldval)>=0,
+                Split(Replace(Replace(Replace(fieldval,'\""',''),'[',''),']',''),','),
+                Split(Replace(Replace(fieldval,'[',''),']',''),','))
+  Arr = iif(Text(Arr)=='[""""]',[],Arr)
+  return Arr
+}
+var EQs = Filter(FeatureSetByName($datastore,'Equipment',['ObjectID','EQUIPMENT_TYPE','OUTPUT_PORTS'],true),""SUBTYPE_CODE IN (3,4,5,6,8)"")
+var Rs = FeatureSetByName($datastore,'RoutingHelper',['ObjectID','SUBTYPE_CODE','TotalOutputs','RouteSize','Allocations'],true)
+var Lats = Filter(Rs,""SUBTYPE_CODE IN (2,3,4) AND ObjectID <> ""+Number($feature.OBJECTID)+"""")
+var Dists = Filter(Rs,""SUBTYPE_CODE IN (1,2,3) AND ObjectID <> ""+Number($feature.OBJECTID)+"""")
+var RTypes = {'2':'Lat','3':{'1':'SRT','2':'DRT','3':'TRT','4':'QRT'},'4':'Tail'}
+var FOID = $feature.OBJECTID; var Outs = $feature.TotalOutputs; var RSize = $feature.RouteSize; var ST = $feature.SUBTYPE_CODE
+var Tethers = Ceil(Outs/12)
+var Type = iif(ST==3,RTypes[Text(ST)][Text(Tethers)],RTypes[Text(ST)])
+var Alloc = 0
+if (ST==1) {Alloc = RSize}
+if (ST==2) {Alloc = RSize}
+if (ST==3) {Alloc = Ceil(Outs/12)*12}
+if (ST==4) {Alloc = RSize}
+var ID = Type+' (OID: '+Text(FOID)+')'
+Console(FOID+' - '+Type+' ('+Alloc+')')
+Console(ID)
+var Geom = Geometry($feature)['paths'][0]
+var Start = Geom[0]
+var intDists = Intersects(Start,Dists)
+var PONHigh = null
+for (var D in intDists) {
+  var DStart = Geometry(D)['paths'][0][0]
+  if (Equals(Start,DStart)) {continue}
+  var DOID = D.ObjectID; var DAlloc = Split(D.Allocations,'\n')
+  Console('\n  Cable '+DOID)
+  for (var DAll in DAlloc) {
+    var A = DAlloc[DAll]
+    if (Find(ID,A)<0) {continue}
+    var PONs = Replace(Replace(Split(A,' ')[0],'(',''),')','')
+    PONHigh = Number(iif(Find('-',PONs)>=0,Split(PONs,'-')[1],PONs))
+    Console('  '+A+'\n  '+PONs+'\n  '+PONHigh)
+    break
+  }  
+}
+return PONHigh",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Lateral Count End,,CALCULATION,,CountEnd,True,False,False,True,"if (Includes([1,5],$feature.SUBTYPE_CODE)) {return $feature.CountEnd}
+function ConvArr(fieldval) {
+  var Arr = iif(Find('\""',fieldval)>=0,
+                Split(Replace(Replace(Replace(fieldval,'\""',''),'[',''),']',''),','),
+                Split(Replace(Replace(fieldval,'[',''),']',''),','))
+  Arr = iif(Text(Arr)=='[""""]',[],Arr)
+  return Arr
+}
+var EQs = Filter(FeatureSetByName($datastore,'Equipment',['ObjectID','EQUIPMENT_TYPE','OUTPUT_PORTS'],true),""SUBTYPE_CODE IN (3,4,5,6,8)"")
+var Rs = FeatureSetByName($datastore,'RoutingHelper',['ObjectID','SUBTYPE_CODE','TotalOutputs','RouteSize','Allocations'],true)
+var Lats = Filter(Rs,""SUBTYPE_CODE IN (2,3,4) AND ObjectID <> ""+Number($feature.OBJECTID)+"""")
+var Dists = Filter(Rs,""SUBTYPE_CODE IN (1,2,3) AND ObjectID <> ""+Number($feature.OBJECTID)+"""")
+var RTypes = {'2':'Lat','3':{'1':'SRT','2':'DRT','3':'TRT','4':'QRT'},'4':'Tail'}
+var FOID = $feature.OBJECTID; var Outs = $feature.TotalOutputs; var RSize = $feature.RouteSize; var ST = $feature.SUBTYPE_CODE
+var Tethers = Ceil(Outs/12)
+var Type = iif(ST==3,RTypes[Text(ST)][Text(Tethers)],RTypes[Text(ST)])
+var Alloc = 0
+if (ST==1) {Alloc = RSize}
+if (ST==2) {Alloc = RSize}
+if (ST==3) {Alloc = Ceil(Outs/12)*12}
+if (ST==4) {Alloc = RSize}
+var ID = Type+' (OID: '+Text(FOID)+')'
+Console(FOID+' - '+Type+' ('+Alloc+')')
+Console(ID)
+var Geom = Geometry($feature)['paths'][0]
+var Start = Geom[0]
+var intDists = Intersects(Start,Dists)
+var PONLow = null
+var PONHigh = null
+for (var D in intDists) {
+  var DStart = Geometry(D)['paths'][0][0]
+  if (Equals(Start,DStart)) {continue}
+  var DOID = D.ObjectID; var DAlloc = Split(D.Allocations,'\n')
+  Console('\n  Cable '+DOID)
+  for (var DAll in DAlloc) {
+    var A = DAlloc[DAll]
+    if (Find(ID,A)<0) {continue}
+    var PONs = Replace(Replace(Split(A,' ')[0],'(',''),')','')
+    PONLow = Number(iif(Find('-',PONs)>=0,Split(PONs,'-')[0],PONs))
+    PONHigh = Number(iif(Find('-',PONs)>=0,Split(PONs,'-')[1],PONs))
+    Console('  '+A+'\n  '+PONs+'\n  '+PONLow)
+    break
+  }  
+}
+return PONLow",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Lateral Fiber End,,CALCULATION,,FiberEnd,True,False,False,True,"if (Includes([1,5],$feature.SUBTYPE_CODE)) {return $feature.FiberEnd}
+function ConvArr(fieldval) {
+  var Arr = iif(Find('\""',fieldval)>=0,
+                Split(Replace(Replace(Replace(fieldval,'\""',''),'[',''),']',''),','),
+                Split(Replace(Replace(fieldval,'[',''),']',''),','))
+  Arr = iif(Text(Arr)=='[""""]',[],Arr)
+  return Arr
+}
+var EQs = Filter(FeatureSetByName($datastore,'Equipment',['ObjectID','EQUIPMENT_TYPE','OUTPUT_PORTS'],true),""SUBTYPE_CODE IN (3,4,5,6,8)"")
+var Rs = FeatureSetByName($datastore,'RoutingHelper',['ObjectID','SUBTYPE_CODE','TotalOutputs','RouteSize','FiberStart','CountStart','CountEnd','Allocations'],true)
+var Lats = Filter(Rs,""SUBTYPE_CODE IN (2,3,4) AND ObjectID <> ""+Number($feature.OBJECTID)+"""")
+var Dists = Filter(Rs,""SUBTYPE_CODE IN (1,2,3) AND ObjectID <> ""+Number($feature.OBJECTID)+"""")
+var RTypes = {'2':'Lat','3':{'1':'SRT','2':'DRT','3':'TRT','4':'QRT'},'4':'Tail'}
+var FOID = $feature.OBJECTID; var Outs = $feature.TotalOutputs; var RSize = $feature.RouteSize; var ST = $feature.SUBTYPE_CODE
+var FibStart = iif($feature.FiberStart==null,RSize,$feature.FiberStart); var CtStart = $feature.CountStart; var CtEnd = $feature.CountEnd
+var FibEnd = null
+if (CtStart!=null && CtEnd!=null) {
+  var Diff = CtStart-CtEnd
+  Console(Diff)
+  FibEnd = FibStart-Diff
+}
+Console(FibEnd)
+return FibEnd
+/*
+var Tethers = Ceil(Outs/12)
+var Type = iif(ST==3,RTypes[Text(ST)][Text(Tethers)],RTypes[Text(ST)])
+var Alloc = 0
+if (ST==1) {Alloc = RSize}
+if (ST==2) {Alloc = RSize}
+if (ST==3) {Alloc = Ceil(Outs/12)*12}
+if (ST==4) {Alloc = RSize}
+var ID = Type+' (OID: '+Text(FOID)+')'
+Console(FOID+' - '+Type+' ('+Alloc+')')
+Console(ID)
+var Geom = Geometry($feature)['paths'][0]
+var Start = Geom[0]
+var intDists = Intersects(Start,Dists)
+var FibLow = null
+var FibHigh = null
+for (var D in intDists) {
+  var DStart = Geometry(D)['paths'][0][0]
+  if (Equals(Start,DStart)) {continue}
+  var DOID = D.ObjectID; var DAlloc = Split(D.Allocations,'\n')
+  Console('\n  Cable '+DOID)
+  for (var DAll in DAlloc) {
+    var A = DAlloc[DAll]
+    if (Find(ID,A)<0) {continue}
+    var Fibs = Replace(Replace(Split(A,' ')[1],'(',''),')','')
+    FibLow = Number(iif(Find('-',Fibs)>=0,Split(Fibs,'-')[0],Fibs))
+    FibHigh = Number(iif(Find('-',Fibs)>=0,Split(Fibs,'-')[1],Fibs))
+    Console('  '+A+'\n  '+Fibs+'\n  '+FibLow)
+    break
+  }  
+}
+return FibLow
+*/",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Route ID,,CALCULATION,Reference Geometry,RouteID,True,True,False,True,"var Rs = FeatureSetByName($datastore,'RoutingHelper',['ObjectID','SUBTYPE_CODE','TotalOutputs','RouteSize','FiberStart','CountStart','AssignToList','AssignToOrder'],true)
+var Geom = Geometry($feature)['paths'][0]
+var End = Geom[-1]
+var ID = null
+var Routes = Touches(End,Rs)
+for (var Route in Routes) {
+  var REnd = Geometry(Route)['paths'][0][-1]
+  if (Intersects(REnd,End)) {ID = Route.ObjectID; break}
+}
+return ID",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Distribution Count End,,CALCULATION,Distribution Route,CountEnd,True,False,False,True,"var OID = $feature.OBJECTID; var Alloc = Split($feature.Allocations,'\n')
+Console('\n  Cable '+OID)
+var CountEnd = null
+var FibEnd = 1
+for (var All in Alloc) {
+  var A = Alloc[All]
+  if (Find('(DEAD)',A)>=0) {
+    var Fibs = Replace(Replace(Split(A,' ')[1],'(',''),')','')
+    var FibHigh = Number(iif(Find('-',Fibs)>=0,Split(Fibs,'-')[1],Fibs))
+    Console('  '+A+'\n  '+Fibs+'\n  '+FibHigh)
+    FibEnd = FibHigh+1
+    var PONs = Replace(Replace(Split(Alloc[All+1],' ')[0],'(',''),')','')
+    var PONLow = Number(iif(Find('-',PONs)>=0,Split(PONs,'-')[0],PONs))
+    Console('  '+Alloc[All+1]+'\n  '+PONs+'\n  '+PONLow)
+    CountEnd = PONLow
+    break
+  }
+  if (Find('(DEAD)',A)<0 && All==0) {
+    var PONs = Replace(Replace(Split(A,' ')[0],'(',''),')','')
+    var PONLow = Number(iif(Find('-',PONs)>=0,Split(PONs,'-')[0],PONs))
+    Console('  '+A+'\n  '+PONs+'\n  '+PONLow)
+    CountEnd = PONLow
+    break
+  }
+}
+Console(CountEnd)
+return CountEnd",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Distribution Fiber End,,CALCULATION,Distribution Route,FiberEnd,True,False,False,True,"var OID = $feature.OBJECTID; var Alloc = Split($feature.Allocations,'\n')
+Console('\n  Cable '+OID)
+var CountEnd = null
+var FibEnd = 1
+for (var All in Alloc) {
+  var A = Alloc[All]
+  if (Find('(DEAD)',A)>=0) {
+    var Fibs = Replace(Replace(Split(A,' ')[1],'(',''),')','')
+    var FibHigh = Number(iif(Find('-',Fibs)>=0,Split(Fibs,'-')[1],Fibs))
+    Console('  '+A+'\n  '+Fibs+'\n  '+FibHigh)
+    FibEnd = FibHigh+1
+    var PONs = Replace(Replace(Split(Alloc[All+1],' ')[0],'(',''),')','')
+    var PONLow = Number(iif(Find('-',PONs)>=0,Split(PONs,'-')[0],PONs))
+    Console('  '+Alloc[All+1]+'\n  '+PONs+'\n  '+PONLow)
+    CountEnd = PONLow
+    break
+  }
+  if (Find('(DEAD)',A)<0 && All==0) {
+    var PONs = Replace(Replace(Split(A,' ')[0],'(',''),')','')
+    var PONLow = Number(iif(Find('-',PONs)>=0,Split(PONs,'-')[0],PONs))
+    Console('  '+A+'\n  '+PONs+'\n  '+PONLow)
+    CountEnd = PONLow
+    break
+  }
+}
+Console(FibEnd)
+return FibEnd",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Auto Unhide Labels,,CALCULATION,,Hide_Label,True,False,False,True,"var oldAssList = $originalfeature.AssignToList; var newAssList = $feature.AssignToList
+
+if (oldAssList!=newAssList) {return 'No'}",,,False,True,False,,,2147483647,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Cable ID,,CALCULATION,,Cable_ID,True,False,False,True,"if ($feature.Cable_GUID==null) {return $feature.Cable_ID}
+
+var CGUID = $feature.Cable_GUID
+var sql = ""Cable_GUID = @CGUID""
+var RelCable = First(Filter(FeatureSetByName($datastore,'Transmedia',['ObjectID','Cable_ID','Cable_GUID'],true),sql))
+
+if (RelCable==null) {return $feature.Cable_ID}
+
+var ID = RelCable.Cable_ID
+
+return ID",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Calculated_Length,Automatic geometry calculation for length,CALCULATION,Reference Geometry,Calculated_Length,False,True,False,True,"//Check for geometry change upon edit and only calculate length if geometry changes
+var oldGeo = geometry($originalFeature)
+var newGeo = geometry($feature)
+//if (Equals(newGeo, oldGeo)) {return $feature.Calculated_Length}
+
+var Spans = FeatureSetByName($datastore,'Span',['ObjectID'],true)
+var intSpans = Contains($feature,Spans)
+
+var Len = 0
+for (var S in intSpans) {
+  Len += Ceil(LengthGeodetic(S,'feet'))
+}
+
+return Len",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"

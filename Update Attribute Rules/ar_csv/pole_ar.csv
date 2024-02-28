@@ -1,0 +1,177 @@
+﻿NAME,DESCRIPTION,TYPE,SUBTYPE,FIELD,ISEDITABLE,TRIGGERINSERT,TRIGGERDELETE,TRIGGERUPDATE,SCRIPTEXPRESSION,ERRORNUMBER,ERRORMESSAGE,EXCLUDECLIENTEVALUATION,ISENABLED,BATCH,SEVERITY,TAGS,CATEGORY,CHECKPARAMETERS
+Pole_UNID,Pole_UNID,CALCULATION,,UNID,True,True,False,True,"return iif (($feature.GlobalID != Null), (""POLES:POLE::"" + Upper(right(split($feature.GlobalID,""-"")[0],8))), null)",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Work Order ID,,CALCULATION,,WORK_ORDER_ID,True,True,False,True,"var FDA = First(Intersects($feature,FeatureSetByName($datastore,'FDA',[""WORK_ORDER_ID""],true)))
+iif(IsEmpty(FDA),null,FDA.WORK_ORDER_ID)",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Pole Address,,CALCULATION,,Pole_Address,True,True,False,True,"var oldGeo = geometry($originalFeature)
+var newGeo = geometry($feature)
+var searchDistance = 500
+var PlaceAdd = Null
+if (!Equals(newGeo,oldGeo)) {
+  var DP = FeatureSetByName($datastore, ""Demand_Point"", [""Address""])
+  var DPIntersect = Intersects(DP, BufferGeodetic($feature, searchDistance, ""feet""))
+  var countDP = Count(DPIntersect)
+
+  var minDistance = 500
+  if (countDP > 0) {
+    for (var Demand in DPIntersect) {
+      var Demand_geo = Point(Geometry(Demand))
+      var FDH = Point(Geometry($feature))
+      var dist = DistanceGeodetic(Demand_geo, FDH, ""feet"")
+      if (dist < minDistance) {
+      PlaceAdd = Demand.Address
+      minDistance = dist
+      }
+    }
+    return PlaceAdd
+  } 
+  else {
+    return ""No address point found within "" + searchDistance + ""'.""
+  }
+}",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Pole Page,,CALCULATION,,Pole_Page,True,True,False,True,"var Frames = FeatureSetByName($datastore,'Frames_PlanView',[""PageFinal""],true)
+var intFrame = Within($feature, Frames)
+var Frame = First(intFrame)
+
+iif(IsEmpty(Frame),null,Frame.PageFinal)",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Pole ID,,CALCULATION,,Pole_ID,True,True,False,False,"function Sorting(a,b) { //Sort list entries in ascending order
+    if (a < b)
+        return -1;
+    if (a > b)
+        return 1;
+    return 0;
+}
+
+Console('Pole OID: ' + $feature.OBJECTID)
+var IDClasses = {'Crossover':'XO:', 'Midspan':'MS:', 'Pole':'P:', 'Default':'DEF:', 'Other':'UNK:'}
+var PType = iif(IsEmpty($feature.Pole_Type),'Other',Text($feature.Pole_Type))
+if ($feature.SUBTYPE_CODE==1) {PType = 'Default'}
+if ($feature.SUBTYPE_CODE==2) {PType = 'Pole'}
+if (HasKey(IDClasses,PType)) {
+    var Prefix = IDClasses[PType]
+    var sql = ""Pole_Type = @PType""
+    if ($feature.SUBTYPE_CODE==1) {sql = ""SUBTYPE_CODE = 1""}
+    if ($feature.SUBTYPE_CODE==2) {sql = ""SUBTYPE_CODE = 2""}
+    var FC = Filter(GetFeatureSet($feature),sql)
+    var TempID = 1
+
+    Console(Count(FC))
+    var ExistID = []
+    for (var f in FC) {
+        if (f.Pole_ID != null) {
+            ExistID[Count(ExistID)] = iif(Find(':',f.Pole_ID)>=0,Number(Split(f.Pole_ID,':')[1]),Number(f.Pole_ID))
+        }
+    }
+
+    var SortExisting = Distinct(Sort(ExistID,Sorting))
+    Console(SortExisting)
+    Console(Count(SortExisting))
+    if (!IsEmpty(ExistID)) {
+        if (Includes(ExistID,Number(TempID))) {
+            var Gap = 'No'
+            Console(Text(TempID,'0000') + ' already in use')
+            for (var i=0; i<Count(SortExisting)-1; i++) {
+                Console(i)
+                if ((SortExisting[i+1]-SortExisting[i]) != 1) {
+                    Gap = 'Yes'
+                    Console('Gap found after ID ' + SortExisting[i])
+                    Console(SortExisting[i]+1)
+                    TempID = SortExisting[i]+1
+                    break
+                }
+                Console(i)
+                Console(SortExisting[i])
+                Console(SortExisting[i+1])
+                Console('--------')
+            }
+            Console('Final i - ' + SortExisting[i])
+            Console(Pop(SortExisting))
+            if (Count(ExistID) == 1) {
+                TempID = TempID + 1
+            }
+            else if (Gap == 'No') {
+                TempID = SortExisting[i-1] + 2
+            }
+            Console(TempID)   
+        }
+    }
+    var ID = Prefix + iif(Number(TempID)>9999,Text(TempID,'00000'),Text(TempID,'0000'))
+
+    Console(ID)
+    return ID
+}",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Span Data,,CALCULATION,,SpanData,True,True,False,True,"var Spans = Filter(FeatureSetByName($datastore,'Span',['ObjectID','SPAN_ID','CALCULATED_LENGTH'],true),""SUBTYPE_CODE = 3"")
+var Strands = FeatureSetByName($datastore,'Strand',['ObjectID','MIDSPAN_HEIGHT'],true)
+var Poles = FeatureSetByName($datastore,'Pole',['ObjectID','SUBTYPE_CODE','Pole_ID'],true)
+
+var intSpans = Intersects($feature,Spans)
+var SpanData = {}
+for (var S in intSpans) {
+  var SOID = Text(S.ObjectID)
+  var intStrand = First(Contains(S,Strands))
+  var MSHeight = iif(intStrand==null,null,intStrand.MIDSPAN_HEIGHT)
+  var v0 = Geometry(S)['paths'][0][0]
+  var vn = Geometry(S)['paths'][-1][-1]
+  var Pole0 = iif(First(Intersects(v0,Poles))==null,'TBD',First(Intersects(v0,Poles)).ObjectID)
+  var Polen = iif(First(Intersects(vn,Poles))==null,'TBD',First(Intersects(vn,Poles)).ObjectID)
+  var SpanBear = iif(Intersects(v0,$feature),Round(Bearing(v0,vn)),Round(Bearing(vn,v0)))
+  var SpanPole = iif(Intersects(v0,$feature),Polen,Pole0)
+  if ($feature.SUBTYPE_CODE==3) {
+    SpanData[Text(SOID)] = [['SPAN:'+S.SPAN_ID,Round(S.CALCULATED_LENGTH/2)+'\'',Round(Bearing(v0,vn)),MSHeight,Polen],['SPAN:'+S.SPAN_ID,Round(S.CALCULATED_LENGTH/2)+'\'',Round(Bearing(vn,v0)),MSHeight,Pole0]]
+  }
+  else {
+    SpanData[Text(SOID)] = [['SPAN:'+S.SPAN_ID,Round(S.CALCULATED_LENGTH)+'\'',SpanBear,MSHeight,SpanPole]]
+  }
+}
+Console('SpanData:')
+for (var key in SpanData) {Console(key + ': ' + SpanData[key])}
+
+return Text(SpanData)",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Assign GUID,,CALCULATION,,Pole_GUID,True,True,False,True,"var PGUID = $feature.Pole_GUID
+
+return iif(PGUID==null,Upper(Guid()),PGUID)",,,True,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Create Related UG_Structure Pole,,CALCULATION,,Pole_ID,True,True,False,False,"var UGPoleadds = []
+var UGPoleupdates = []
+var intUGPole = First(Intersects($feature,Filter(FeatureSetByName($datastore,'UG_Structure',['ObjectID','Pole_GUID'],true),""SUBTYPE_CODE = 15"")))
+if (intUGPole==null) {Push(UGPoleadds,{'attributes':{'SUBTYPE_CODE':15,'STR_ID':iif($feature.Pole_Tag==null,$feature.Pole_ID,$feature.Pole_Tag),'Pole_GUID':$feature.Pole_GUID},'geometry':Geometry($feature)})}
+if (intUGPole!=null) {Push(UGPoleupdates,{'ObjectID':intUGPole.ObjectID,'attributes':{'STR_ID':iif($feature.Pole_Tag==null,$feature.Pole_ID,$feature.Pole_Tag),'Pole_GUID':$feature.Pole_GUID}})}
+
+return {
+  'result':$feature.Pole_ID,
+  'edit':[
+    {'className':'UG_Structure',
+     'adds':UGPoleadds},
+    {'className':'UG_Structure',
+     'updates':UGPoleupdates}
+  ]
+}",,,True,True,False,,,2147483647,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Move Related UG_Structure Pole,,CALCULATION,,Pole_ID,True,True,False,True,"var oldGeo = geometry($originalFeature); var newGeo = geometry($feature)
+var oldPTag = $originalfeature.Pole_Tag; var newPTag = $feature.Pole_Tag
+
+if (!Equals(newGeo, oldGeo) || (oldPTag!=newPTag)) {
+  var PGUID = $feature.Pole_GUID
+  Console(PGUID)
+  var UGPoles = Filter(FeatureSetByName($datastore,'UG_Structure',['ObjectID','Pole_GUID'],true),""Pole_GUID = @PGUID"")
+  if (Count(UGPoles)==0) {return $feature.Pole_ID}
+  var UGPOID = First(UGPoles).ObjectID
+  Console(UGPOID)
+  return {
+    'result':$feature.Pole_ID,
+    'edit':[
+      {'className':'UG_Structure',
+      'updates':[{'ObjectID':UGPOID,'attributes':{'STR_ID':newPTag},'geometry':newGeo}]}
+    ]
+  }
+}",,,True,True,False,,,2147483647,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Delete Related UG_Structure Pole,,CALCULATION,,Pole_ID,True,False,True,False,"var PGUID = $originalfeature.Pole_GUID
+Console(PGUID)
+var UGPoles = Filter(FeatureSetByName($datastore,'UG_Structure',['ObjectID','Pole_GUID'],true),""Pole_GUID = @PGUID"")
+if (Count(UGPoles)==0) {return $feature.Pole_ID}
+var UGPOID = First(UGPoles).ObjectID
+Console(UGPOID)
+return {
+  'result':$feature.Pole_ID,
+  'edit':[
+    {'className':'UG_Structure',
+    'deletes':[{'ObjectID':UGPOID}]}
+  ]
+}",,,True,True,False,,,2147483647,"{""type"":""PropertySet"",""propertySetItems"":[]}"

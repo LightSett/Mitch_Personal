@@ -1,0 +1,67 @@
+﻿NAME,DESCRIPTION,TYPE,SUBTYPE,FIELD,ISEDITABLE,TRIGGERINSERT,TRIGGERDELETE,TRIGGERUPDATE,SCRIPTEXPRESSION,ERRORNUMBER,ERRORMESSAGE,EXCLUDECLIENTEVALUATION,ISENABLED,BATCH,SEVERITY,TAGS,CATEGORY,CHECKPARAMETERS
+Serving_Area UNID,Calulates the serving area UNID,CALCULATION,,UNID,True,True,False,True,"If ($feature.GlobalID != Null){
+Return ""SERV:AREA::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+",,,False,True,False,,,2147483647,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Total Demand,Calculate the total demand points,CALCULATION,,TOTAL_DEMAND_POINTS,True,True,False,True,"var DP = FeatureSetByName($datastore,""Demand_Point"",[""Address""],true)
+var intDP = intersects((DP), Geometry($feature));
+var totalDP = count(intDP);
+return iif(IsEmpty(totalDP), null, totalDP);",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Address List,Generate comma-separated list of service addresses within polygon,CALCULATION,,ADD_LIST,True,True,False,True,"var Demand = FeatureSetByName($datastore,'Demand_Point',[""Address""],true)
+
+var Customers = Contains($feature, Demand)
+
+var AddList = []
+for (var address in Customers) {
+    var Add = address.Address
+    Addlist[Count(AddList)] = Add
+}
+return Concatenate(AddList,',')
+//for (var i in Count(AddList)) {
+//    if (i == 0) {
+//        return AddList[i]
+//    }
+//   else {
+//        return $feature.ADD_LIST + ',' + AddList[i]
+//    }
+//}",,,False,True,False,,,2147483647,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Associate Splice Tray Assembly,,CALCULATION,Equipment Serving Area,ASSOC_EQUIPMENT,True,True,False,True,"var SAEQs = Filter(FeatureSetByName($datastore,""Serving_Area"",['ObjectID',""ASSOC_EQUIPMENT"",'SUBTYPE_CODE'],true),""SUBTYPE_CODE = 2"")
+var EQs = FeatureSetByName($datastore,""Equipment"",['ObjectID',""SUBTYPE_CODE"",'EQUIPMENT_TYPE'],true)
+var MSTs = Filter(EQs,""EQUIPMENT_TYPE IN ('MST','Future Loop')"")
+
+var ID = null
+var intEQ = Intersects($feature,MSTs)
+var intSAs = Overlaps($feature,Filter(SAEQs,""ObjectID <> "" + Number($feature.OBJECTID) + """"))
+var EQass = []
+for (var SA in intSAs) {
+  Console(SA.ObjectID)
+  var EQa = iif(SA.ASSOC_EQUIPMENT==null,'',Text(SA.ASSOC_EQUIPMENT))
+  if (!Includes(EQass,Text(EQa))) {Push(EQass,Text(EQa))}
+}
+for (var EQ in intEQ) {
+  if (Includes(EQass,Text(EQ.ObjectID))) {continue}
+  ID = EQ.ObjectID
+}
+Console(ID)
+
+return ID",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Work Order ID,,CALCULATION,,WORK_ORDER_ID,True,True,False,True,"var FDAs = Intersects(Centroid($feature),FeatureSetByName($datastore,'FDA',[""WORK_ORDER_ID""],true))
+var FDA = First(FDAs)
+
+iif(IsEmpty(FDA),null,FDA.WORK_ORDER_ID)",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Splice SA Demand,,CALCULATION,Splice Serving Area,TOTAL_DEMAND_POINTS,True,True,False,True,"var EQs = Filter(FeatureSetByName($datastore,'Equipment',['ObjectID','OUTPUT_PORTS'],true),""EQUIPMENT_TYPE IN ('MST','Future Loop')"")
+
+var intEQs = Intersects($feature,EQs)
+var Outs = 0
+for (var EQ in intEQs) {Outs += Number(EQ.OUTPUT_PORTS)}
+
+return Outs",,,True,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Equipment Port Count,,CALCULATION,Equipment Serving Area,ASSOC_EQUIPMENT_PORTS,True,True,False,True,"var Equipments = FeatureSetByName($datastore,'Equipment',['ObjectID','OUTPUT_PORTS'],true)
+
+var AssEQ = Number($feature.ASSOC_EQUIPMENT)
+var EQ = First(Filter(Equipments,""ObjectID = ""+Number(AssEQ)+""""))
+
+var Ports = null
+if (EQ!=null) {Ports = Number(EQ.OUTPUT_PORTS)}
+
+return Ports",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"

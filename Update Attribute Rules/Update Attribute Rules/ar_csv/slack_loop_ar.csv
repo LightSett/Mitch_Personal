@@ -1,0 +1,26 @@
+﻿NAME,DESCRIPTION,TYPE,SUBTYPE,FIELD,ISEDITABLE,TRIGGERINSERT,TRIGGERDELETE,TRIGGERUPDATE,SCRIPTEXPRESSION,ERRORNUMBER,ERRORMESSAGE,EXCLUDECLIENTEVALUATION,ISENABLED,BATCH,SEVERITY,TAGS,CATEGORY,CHECKPARAMETERS
+Slack UNID,Calculate UNID of Slack,CALCULATION,,UNID,True,True,False,True,"If (($feature.GlobalID != Null) && ($feature.ENVIRONMENT == ""Aerial"")){
+Return ""SLKLP:AER::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+else if (($feature.GlobalID != Null) && ($feature.ENVIRONMENT == ""Underground"")){
+Return ""SLKLP:UG::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}",,,False,True,False,,,2147483647,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Structure_UNID,,CALCULATION,,STRUCTURE_UNID,True,True,False,True,"var searchDist = 10;
+
+If ($feature.ENVIRONMENT == ""Aerial""){
+    var Pole = FeatureSetByName($datastore, ""Pole"", [""UNID""], true);
+    var nearPole = Intersects(BufferGeodetic(Geometry($feature), searchDist, ""feet""), Pole);
+    var matchedPole = First(nearPole);
+
+    return iif(IsEmpty(matchedPole), null, matchedPole.UNID);
+}
+
+else if ($feature.ENVIRONMENT == ""Underground""){
+    var UG_Structure = FeatureSetByName($datastore, ""UG_Structure"", [""STR_ID""], true);
+    var nearStructure = Intersects(BufferGeodetic(Geometry($feature), searchDist, ""feet""), UG_Structure);
+    var matchedStructure = First(nearStructure);
+
+    return iif(IsEmpty(matchedStructure), null, matchedStructure.STR_ID);
+}",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Work Order ID,,CALCULATION,,WORK_ORDER_ID,True,True,False,True,"var FDA = First(Intersects($feature,FeatureSetByName($datastore,'FDA',[""WORK_ORDER_ID""],true)))
+iif(IsEmpty(FDA),null,FDA.WORK_ORDER_ID)",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"

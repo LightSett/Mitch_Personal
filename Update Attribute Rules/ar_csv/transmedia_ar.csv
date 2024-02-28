@@ -1,0 +1,839 @@
+﻿NAME,DESCRIPTION,TYPE,SUBTYPE,FIELD,ISEDITABLE,TRIGGERINSERT,TRIGGERDELETE,TRIGGERUPDATE,SCRIPTEXPRESSION,ERRORNUMBER,ERRORMESSAGE,EXCLUDECLIENTEVALUATION,ISENABLED,BATCH,SEVERITY,TAGS,CATEGORY,CHECKPARAMETERS
+Spare Fibers,Spare Fibers,CALCULATION,,Spare_Fibers,True,True,False,True,"Var x = $feature.Total_Fibers
+Var y = $feature.Active_Fibers
+return x-y",,,False,True,False,,,2147483647,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Work Order ID,,CALCULATION,,Work_Order_ID,True,True,False,True,"if ($feature.Work_Order_ID!=null) {return}
+var FDAs = Intersects($feature,FeatureSetByName($datastore,'FDA',[""WORK_ORDER_ID""],true))
+var FDA = First(FDAs)
+if (Count(FDAs) > 1) {
+    FDA = First(Intersects(Geometry($feature)['paths'][-1][-1],FeatureSetByName($datastore,'FDA',[""WORK_ORDER_ID""],true)))
+}
+
+return iif(IsEmpty(FDA),null,FDA.WORK_ORDER_ID)",,,False,True,False,,,2147483647,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Calculated_Length,Automatic geometry calculation for length,CALCULATION,,Calculated_Length,False,True,False,True,"//Check for geometry change upon edit and only calculate length if geometry changes
+var oldGeo = geometry($originalFeature)
+var newGeo = geometry($feature)
+if (Equals(newGeo, oldGeo)) {return $feature.Calculated_Length}
+
+var Spans = FeatureSetByName($datastore,'Span',['ObjectID'],true)
+var intSpans = Contains($feature,Spans)
+
+var Len = 0
+for (var S in intSpans) {
+  Len += Ceil(LengthGeodetic(S,'feet'))
+}
+
+return Len",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+DropDist to Access,Path distance back to Equipment from drop HH,CALCULATION,Drop Cable,DropDist_to_Acc,True,True,False,True,"//DROP_FDH distance
+var STRs = FeatureSetByName($datastore,'UG_Structure',['ObjectID','SUBTYPE_CODE','STR_ID','Pole_GUID','GlobalID'],true)
+
+var geom = Geometry($feature)['paths']
+var countvert = count(geom[0])
+console(countvert)
+console('-----------------------------------------------------------')
+var Slicer = 0
+for (var n=1; n<countvert-1; n++) {
+    var vert = geom[0][-n]
+    var intSTRs = Intersects(vert,STRs)
+    if (Count(intSTRs)>0) {
+        Slicer = n
+        break
+    }
+}
+Console(Slicer)
+var SlicedGeom = Slice(geom[0],-Slicer)
+var SlicePath = []
+for (var C in SlicedGeom) {
+    Push(SlicePath,[SlicedGeom[C]['x'],SlicedGeom[C]['y'],0,null])
+}
+Console('Sliced coords:')
+Console(SlicePath)
+var DropNIDLine = Polyline({'paths':[SlicePath],'spatialReference':{'wkid':4326}})
+var DropNIDLen = LengthGeodetic(DropNIDLine,'feet')
+var DropEQLen = $feature.CALCULATED_LENGTH - DropNIDLen
+Console(DropEQLen)
+var LenAdj = Round(DropEQLen) + '\''
+return LenAdj",,,False,True,False,,,2147483647,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+DropDist to NID,"Straight line distance from drop HH plus 15%, then an additional 50' slack at NID location",CALCULATION,Drop Cable,DropDist_to_NID,True,True,False,True,"//DROP_NID distance
+var STRs = FeatureSetByName($datastore,'UG_Structure',['ObjectID','SUBTYPE_CODE','STR_ID','Pole_GUID','GlobalID'],true)
+
+var geom = Geometry($feature)['paths']
+var countvert = count(geom[0])
+console(countvert)
+console('-----------------------------------------------------------')
+var Slicer = 0
+for (var n=1; n<countvert-1; n++) {
+    var vert = geom[0][-n]
+    var intSTRs = Intersects(vert,STRs)
+    if (Count(intSTRs)>0) {
+        Slicer = n
+        break
+    }
+}
+Console(Slicer)
+var SlicedGeom = Slice(geom[0],-Slicer)
+var SlicePath = []
+for (var C in SlicedGeom) {
+    Push(SlicePath,[SlicedGeom[C]['x'],SlicedGeom[C]['y'],0,null])
+}
+Console('Sliced coords:')
+Console(SlicePath)
+var DropNIDLine = Polyline({'paths':[SlicePath],'spatialReference':{'wkid':4326}})
+var DropNIDLen = LengthGeodetic(DropNIDLine,'feet')
+var LenAdj = Round(DropNIDLen*1.15+50)
+Console(LenAdj + '\'')
+return LenAdj + '\''",,,False,True,False,,,2147483647,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Drop Access,Coordinates of drop access location,CALCULATION,Drop Cable,Drop_Access,True,True,False,True,"var STRs = FeatureSetByName($datastore,'UG_Structure',['ObjectID','SUBTYPE_CODE','STR_ID','Pole_GUID','GlobalID'],true)
+
+var geom = Geometry($feature).paths
+var countvert = count(geom[0])
+var NTL = (countvert - 2)
+console(countvert)
+console(NTL)
+console('-----------------------------------------------------------')
+var STROIDs = []
+for (var n=1; n<countvert+1; n++) {
+  var vert = geom[0][-n]
+  var intSTRs = Intersects(vert,STRs)
+  var x; var y; var xy
+  if (Count(intSTRs)>0) {
+    for (var STR in intSTRs) {
+      Push(STROIDs,Text(STR.ObjectID))
+    }
+    x = Round(vert[""x""],6)
+    y = Round(vert[""y""],6)
+    xy = Text(x) + ',' + Text(y)
+    break
+  }
+}
+Console(STROIDs)
+Console(xy)
+return STROIDs",,,False,True,False,,,2147483647,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Drop Cable Name,<Address>,CALCULATION,Drop Cable,Cable_ID,True,True,False,True,"//Drop Cable Name
+var DP = FeatureSetByName($datastore,""Demand_Point"",[""Address""],true)
+
+var toDP = contains(Geometry($feature)['paths'][-1][-1], DP)
+
+var matchedDP = First(toDP)
+
+return iif(IsEmpty(matchedDP), null, matchedDP.Address)",,,False,True,False,,,2147483647,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Tail Order Length,,CALCULATION,,Adjusted_Length,True,True,False,True,"if ($feature.TRANSMEDIA_TYPE=='Terminal Tail') {
+  var Len = LengthGeodetic($feature,'feet')
+  var Slack = Len*0.1
+  var LwS = Round(Len + Slack)
+  var OrderLen = iif($feature.ENVIRONMENT!='Aerial',10,10)
+  if (Text(Geometry($feature)['paths'][0][0])!=Text(Geometry($feature)['paths'][-1][-1])) {
+    for (var i=100; i<=1000; i+=100) {
+      Console(i)
+      if (LwS<=i) {OrderLen = i; break}
+    }
+  }
+  if (LwS>1000) {return 'Tail too long! (>1000\')'}
+  return OrderLen + '\''
+}",,,False,False,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+From_SC,From Splice Closure,CALCULATION,,From_Splice_Closure,True,True,False,True,"var Splices = FeatureSetByName($datastore,""Splice_Closure"",['ObjectID',""SPLCL_ID"",'GlobalID'],true)
+var Froms = Intersects((Geometry($feature)['paths'][0][0]), Splices)
+var IDs = []
+for (var F in Froms) {
+    Push(IDs,Text(F.ObjectID))
+}
+Console(IDs)
+return IDs",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+To_SC,To Splice Closure,CALCULATION,,To_Splice_Closure,True,True,False,True,"var Splices = FeatureSetByName($datastore,""Splice_Closure"",['ObjectID',""SPLCL_ID"",'GlobalID'],true)
+var Tos = Intersects((Geometry($feature)['paths'][-1][-1]), Splices)
+var IDs = []
+for (var T in Tos) {
+    Push(IDs,Text(T.ObjectID))
+}
+Console(IDs)
+return IDs",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+From_EQ,From Equipment,CALCULATION,,From_Equipment,True,True,False,True,"var sql = ""EQUIPMENT_TYPE <> 'Splitter'""
+var EQs = Filter(FeatureSetByName($datastore,""Equipment"",[""EQUIP_ID"",'GlobalID'],true),sql)
+var Froms = Intersects((Geometry($feature)['paths'][0][0]), EQs)
+var IDs = []
+for (var F in Froms) {
+    Push(IDs,Text(F.ObjectID))
+}
+Console(IDs)
+return IDs",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+To_EQ,To Equipment,CALCULATION,,To_Equipment,True,True,False,True,"var sql = ""EQUIPMENT_TYPE <> 'Splitter'""
+var EQs = Filter(FeatureSetByName($datastore,""Equipment"",[""EQUIP_ID"",'GlobalID','PON_COUNT'],true),sql)
+var Tos = Intersects((Geometry($feature)['paths'][-1][-1]), EQs)
+var IDs = []
+for (var T in Tos) {
+    //if ($feature.SUBTYPE_CODE==11 && $feature.PON_Count!=T.PON_Count) {continue}
+    Push(IDs,Text(T.ObjectID))
+}
+Console(IDs)
+return IDs",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+From_Structure,From Structure,CALCULATION,,From_Structure,True,True,False,True,"var STRs = FeatureSetByName($datastore,""UG_Structure"",['ObjectID',""STR_ID"",'SUBTYPE_CODE','GlobalID','Pole_GUID'],true)
+var Froms = Intersects((Geometry($feature)['paths'][0][0]), STRs)
+var IDs = []
+for (var F in Froms) {
+    Push(IDs,Text(F.ObjectID))
+}
+Console(IDs)
+return IDs",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+To_Structure,To Structure,CALCULATION,,To_Structure,True,True,False,True,"var STRs = FeatureSetByName($datastore,""UG_Structure"",['ObjectID',""STR_ID"",'SUBTYPE_CODE','GlobalID','Pole_GUID'],true)
+var Tos = Intersects((Geometry($feature)['paths'][-1][-1]), STRs)
+var IDs = []
+for (var T in Tos) {
+    Push(IDs,Text(T.ObjectID))
+}
+Console(IDs)
+return IDs",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Slack_Loops,Update list of Slack Loop OIDs associated with the cable,CALCULATION,,Slack_Loops,True,False,False,True,"var SLs = FeatureSetByName($datastore,'Slack_Loop',['Cable_ID','Cable_GUID'],true)
+var GID = $feature.Cable_GUID
+var assSLs = Filter(SLs,""Cable_GUID = @GID"")
+var SLList = []
+if (Count(assSLs)>0) {for (var SL in assSLs) {
+  if (!Includes(SLList,Text(SL.ObjectID))) {Push(SLList,Text(SL.ObjectID))}
+}}
+return Text(SLList)",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Slack_Lengths,Update total slack length of associated Slack Loops,CALCULATION,,Slack_Length,True,False,False,True,"var SLs = FeatureSetByName($datastore,'Slack_Loop',['Cable_ID','Cable_GUID','Length_Adjustment'],true)
+var GID = $feature.Cable_GUID
+var assSLs = Filter(SLs,""Cable_GUID = @GID"")
+if (Count(assSLs)==0) {return}
+var SLLen = 0
+if (Count(assSLs)>0) {for (var SL in assSLs) {
+  SLLen += SL.Length_Adjustment
+}}
+return SLLen",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Adjusted_Length,Calculate length with slack loops,CALCULATION,,Adjusted_Length,True,False,False,True,"if (Includes([10,11,12],$feature.SUBTYPE_CODE)) {return $feature.Adjusted_Length}
+var SLLen = iif($feature.Slack_Length==null,0,$feature.Slack_Length)
+var CLen = Ceil(iif($feature.Calculated_Length==null,0,$feature.Calculated_Length))
+return CLen+SLLen",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Assign GUID,,CALCULATION,,Cable_GUID,True,True,False,True,"var CGUID = $feature.Cable_GUID
+
+return iif(CGUID==null,Upper(Guid()),CGUID)",,,True,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Cable Diameter,,CALCULATION,,Nominal_OD,True,True,False,True,"if ($feature.SUBTYPE_CODE==1) {return $feature.Nominal_OD}
+
+var oldCS = $originalfeature.Cable_Series; var CS = $feature.Cable_Series
+var oldType = $originalfeature.Cable_Type; var Type = $feature.Cable_Type
+var oldT = $originalfeature.Transmedia_Type; var T = $feature.Transmedia_Type
+var oldCt = $originalfeature.Total_Fibers; var Ct = $feature.Total_Fibers
+
+if ((oldCS==CS && oldType==Type && oldT==T && oldCt==Ct) && $feature.Nominal_OD!=null) {return $feature.Nominal_OD}
+
+var Vars = [CS,Type,T,Ct]
+for (var V in Vars) {
+  if (V==0 && Includes([10,11,12],$feature.SUBTYPE_CODE)) {continue}
+  if (Vars[V]==null) {return 'Null in Cab_Ser/Cab_Type/Tran_Type/Tot_Fib'}
+}
+
+//var CSizes = {'SST-Ribbon':{'FNAP':{},'nFNAP':{}},'RocketRibbon':{'FNAP':{},'nFNAP':{}},'RPX':{'FNAP':{},'nFNAP':{}},'ALTOS':{'FNAP':{},'nFNAP':{}},'Other':{'FNAP':{},'nFNAP':{}}}
+var CSizes = {'SST-Ribbon':{'Armored':{'24':'0.47x0.47','48':'0.47x0.47','72':'0.51x0.51','144':'0.55x0.55','216':'0.74x0.74'},
+                         'Dielectric':{'24':'0.41x0.41','48':'0.41x0.41','72':'0.44x0.44','144':'0.51x0.51','216':'0.71x0.71'}
+                           },
+              'RocketRibbon':{'Armored':{'288':'0.81x0.81','360':'0.87x0.87','432':'0.86x0.86','576':'0.96x0.96','864':'0.96x0.96','1728':'1.10x1.10'},
+                           'Dielectric':{'288':'0.80x0.80','360':'0.82x0.82','432':'0.83x0.83','576':'0.92x0.92','864':'0.92x0.92','1728':'1.02x1.02','3456':'1.30x1.30'}
+                             },
+              'RPX':{'24':'0.60x0.31','48':'0.60x0.31','72':'0.60x0.32','144':'0.60x0.34'},
+              'ALTOS':{'24':'0.48x0.48','48':'0.48x0.48','72':'0.48x0.48','144':'0.69x0.69','216':'0.70x0.70','432':'0.91x0.91'},
+              'SST Flat Dielectric Drop':{'1':'0.21x0.21','4':'0.32x0.17','6':'0.32x0.17','8':'0.32x0.17','12':'0.32x0.17','24':null},
+              'FDH Tail':{'24':'0.41x0.41','48':'0.41x0.41','72':'0.44x0.44','144':'0.51x0.51','216':'0.71x0.71','288':'0.80x0.80','432':'0.83x0.83'},
+              'Drop':{'1':'0.21x0.21'}
+             }
+var CLimit = {'SST-Ribbon':{'Armored':{'24':{'nFNAP':'0.47'},'48':{'nFNAP':'0.47'},'72':{'nFNAP':'0.51'},'144':{'nFNAP':'0.55'},'216':{'nFNAP':'0.74'}},
+                         'Dielectric':{'24':{'nFNAP':'0.41'},'48':{'nFNAP':'0.41'},'72':{'nFNAP':'0.44'},'144':{'nFNAP':'0.51'},'216':{'nFNAP':'0.71'}}
+                           },
+              'RocketRibbon':{'Armored':{'288':{'nFNAP':'0.81'},'360':{'nFNAP':'0.87'},'432':{'nFNAP':'0.86'},'576':{'nFNAP':'0.96'},'864':{'nFNAP':'0.96'},'1728':{'nFNAP':'1.10'}},
+                           'Dielectric':{'288':{'nFNAP':'0.80'},'360':{'nFNAP':'0.82'},'432':{'nFNAP':'0.83'},'576':{'nFNAP':'0.92'},'864':{'nFNAP':'0.92'},'1728':{'nFNAP':'1.02'},'3456':{'nFNAP':'1.30'}}
+                             },
+              'RPX':{'24':{'FNAP':'1.29','nFNAP':'0.60'},'48':{'FNAP':'1.29','nFNAP':'0.60'},'72':{'FNAP':'1.29','nFNAP':'0.60'},'144':{'FNAP':'1.29','nFNAP':'0.60'}},
+              'ALTOS':{'24':{'FNAP':'1.76','nFNAP':'0.48'},'48':{'FNAP':'1.76','nFNAP':'0.48'},'72':{'FNAP':'1.76','nFNAP':'0.48'},
+                       '144':{'FNAP':'2.00','nFNAP':'0.69'},'216':{'FNAP':'2.00','nFNAP':'0.70'},'432':{'FNAP':'2.00','nFNAP':'0.91'}
+                      },
+              'SST Flat Dielectric Drop':{'1':{'nFNAP':'0.47'},'4':{'nFNAP':'0.70'},'6':{'nFNAP':'0.70'},'8':{'nFNAP':'0.70'},'12':{'nFNAP':'0.70'},'24':null},
+              'FDH Tail':{'24':{'nFNAP':'0.41'},'48':{'nFNAP':'0.41'},'72':{'nFNAP':'0.44'},'144':{'nFNAP':'0.51'},'216':{'nFNAP':'0.71'},'288':{'nFNAP':'0.80'},'432':{'nFNAP':'0.83'}},
+              'Drop':{'1':{'nFNAP':'0.47'}}
+             }
+var Limiters = {'SST-Ribbon':{'Armored':{'24':{'nFNAP':'Cable Diameter'},'48':{'nFNAP':'Cable Diameter'},'72':{'nFNAP':'Cable Diameter'},'144':{'nFNAP':'Cable Diameter'},'216':{'nFNAP':'Cable Diameter'}},
+                           'Dielectric':{'24':{'nFNAP':'Cable Diameter'},'48':{'nFNAP':'Cable Diameter'},'72':{'nFNAP':'Cable Diameter'},'144':{'nFNAP':'Cable Diameter'},'216':{'nFNAP':'Cable Diameter'}}
+                             },
+                'RocketRibbon':{'Armored':{'288':{'nFNAP':'Cable Diameter'},'360':{'nFNAP':'Cable Diameter'},'432':{'nFNAP':'Cable Diameter'},'576':{'nFNAP':'Cable Diameter'},'864':{'nFNAP':'Cable Diameter'},'1728':{'nFNAP':'Cable Diameter'}},
+                             'Dielectric':{'288':{'nFNAP':'Cable Diameter'},'360':{'nFNAP':'Cable Diameter'},'432':{'nFNAP':'Cable Diameter'},'576':{'nFNAP':'Cable Diameter'},'864':{'nFNAP':'Cable Diameter'},'1728':{'nFNAP':'Cable Diameter'},'3456':{'nFNAP':'Cable Diameter'}}
+                               },
+                'RPX':{'24':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},'48':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},
+                       '72':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},'144':{'FNAP':'Overmold','nFNAP':'Cable Diameter'}},
+                'ALTOS':{'24':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},'48':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},
+                         '72':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},'144':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},'216':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},'432':{'FNAP':'Overmold','nFNAP':'Cable Diameter'}
+                        },
+                'SST Flat Dielectric Drop':{'1':{'nFNAP':'Pushlok Connector'},'4':{'nFNAP':'Optitip Connector'},'6':{'nFNAP':'Optitip Connector'},'8':{'nFNAP':'Optitip Connector'},'12':{'nFNAP':'Optitip Connector'},'24':null},
+                'FDH Tail':{'24':{'nFNAP':'Cable Diameter'},'48':{'nFNAP':'Cable Diameter'},'72':{'nFNAP':'Cable Diameter'},'144':{'nFNAP':'Cable Diameter'},'216':{'nFNAP':'Cable Diameter'},'288':{'nFNAP':'Cable Diameter'},'432':{'nFNAP':'Cable Diameter'}},
+                'Drop':{'1':{'nFNAP':'Pushlok Connector'}}
+               }
+var CUnits = {'SST-Ribbon':{'Armored':{'24':'1x2','48':'1x4','72':'1x6','144':'1x12','216':'1x18'},
+                         'Dielectric':{'24':'1x2','48':'1x4','72':'1x6','144':'1x12','216':'1x18'}
+                           },
+              'RocketRibbon':{'Armored':{'288':'1x12','360':'1x15','432':'1x18','576':'1x18','864':'1x28','1728':'6x16'},
+                           'Dielectric':{'288':'1x12','360':'1x15','432':'1x18','576':'1x18','864':'1x28','1728':'6x16','3456':'12x16'}
+                             },
+              'RPX':{'24':'1x2','48':'1x4','72':'1x6','144':'1x12'},
+              'ALTOS':{'24':'1x2','48':'1x4','72':'1x6','144':'1x12','216':'1x18','432':'1x36'},
+              'SST Flat Dielectric Drop':{'1':'1x1','4':'1x1','6':'1x1','8':'1x1','12':'1x1','24':null},
+              'FDH Tail':{'24':'1x2','48':'1x4','72':'1x6','144':'1x12','216':'1x18','288':'1x12','432':'1x18'},
+              'Drop':{'1':'1x1'}
+             }
+var CArran = {'SST-Ribbon':{'Armored':{'24':'2x12','48':'4x12','72':'6x12','144':'12x12','216':'18x12'},
+                         'Dielectric':{'24':'2x12','48':'4x12','72':'6x12','144':'12x12','216':'18x12'}
+                           },
+              'RocketRibbon':{'Armored':{'288':'12x24','360':'15x24','432':'18x24','576':'3x24/12x36/3x24','864':'6x24/16x36/6x24','1728':'4x12/8x24/4x12'},
+                           'Dielectric':{'288':'12x24','360':'15x24','432':'18x24','576':'3x24/12x36/3x24','864':'6x24/16x36/6x24','1728':'4x12/8x24/4x12','3456':'4x12/8x24/4x12'}
+                             },
+              'RPX':{'24':'2x12','48':'4x12','72':'6x12','144':'12x12'},
+              'ALTOS':{'24':'2x12','48':'4x12','72':'6x12','144':'12x12','216':'6x12/12x12','432':'6x12/12x12/18x12'},
+              'SST Flat Dielectric Drop':{'1':'1x1','4':'1x4','6':'1x6','8':'1x8','12':'1x12','24':null},
+              'FDH Tail':{'24':'2x12','48':'4x12','72':'6x12','144':'12x12','216':'18x12','288':'12x24','432':'18x24'},
+              'Drop':{'1':'1x1'}
+             }
+
+var FNAP = iif(Find('FlexNAP',T)>=0,'FNAP','nFNAP')
+var key1 = iif(CS==null,T,CS)
+var key2 = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),Type,Text(Ct))
+var key3 = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),Text(Ct),null)
+
+var Size = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),CSizes[key1][key2][key3],CSizes[key1][key2])
+Console(CS+'/'+Type+'/'+T+'/'+Ct+' - '+Size)
+var Limit = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),CLimit[key1][key2][key3][FNAP],CLimit[key1][key2][FNAP])
+Console(CS+'/'+Type+'/'+T+'/'+Ct+' - '+Limit)
+var Limiter = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),Limiters[key1][key2][key3][FNAP],Limiters[key1][key2][FNAP])
+Console(CS+'/'+Type+'/'+T+'/'+Ct+' - '+Limiter)
+var Units = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),CUnits[key1][key2][key3],CUnits[key1][key2])
+Console(CS+'/'+Type+'/'+T+'/'+Ct+' - '+Units)
+var Arran = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),CArran[key1][key2][key3],CArran[key1][key2])
+Console(CS+'/'+Type+'/'+T+'/'+Ct+' - '+Arran)
+
+return Size
+//return Limit",,,False,True,False,,,2147483647,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Limitting Diameter,,CALCULATION,,Limitting_OD,True,True,False,True,"if ($feature.SUBTYPE_CODE==1) {return $feature.Limitting_OD}
+
+var oldCS = $originalfeature.Cable_Series; var CS = $feature.Cable_Series
+var oldType = $originalfeature.Cable_Type; var Type = $feature.Cable_Type
+var oldT = $originalfeature.Transmedia_Type; var T = $feature.Transmedia_Type
+var oldCt = $originalfeature.Total_Fibers; var Ct = $feature.Total_Fibers
+
+if ((oldCS==CS && oldType==Type && oldT==T && oldCt==Ct) && $feature.Limitting_OD!=null) {return $feature.Limitting_OD}
+
+var Vars = [CS,Type,T,Ct]
+for (var V in Vars) {
+  if (V==0 && Includes([10,11,12],$feature.SUBTYPE_CODE)) {continue}
+  if (Vars[V]==null) {return 'Null in Cab_Ser/Cab_Type/Tran_Type/Tot_Fib'}
+}
+
+//var CSizes = {'SST-Ribbon':{'FNAP':{},'nFNAP':{}},'RocketRibbon':{'FNAP':{},'nFNAP':{}},'RPX':{'FNAP':{},'nFNAP':{}},'ALTOS':{'FNAP':{},'nFNAP':{}},'Other':{'FNAP':{},'nFNAP':{}}}
+var CSizes = {'SST-Ribbon':{'Armored':{'24':'0.47x0.47','48':'0.47x0.47','72':'0.51x0.51','144':'0.55x0.55','216':'0.74x0.74'},
+                         'Dielectric':{'24':'0.41x0.41','48':'0.41x0.41','72':'0.44x0.44','144':'0.51x0.51','216':'0.71x0.71'}
+                           },
+              'RocketRibbon':{'Armored':{'288':'0.81x0.81','360':'0.87x0.87','432':'0.86x0.86','576':'0.96x0.96','864':'0.96x0.96','1728':'1.10x1.10'},
+                           'Dielectric':{'288':'0.80x0.80','360':'0.82x0.82','432':'0.83x0.83','576':'0.92x0.92','864':'0.92x0.92','1728':'1.02x1.02','3456':'1.30x1.30'}
+                             },
+              'RPX':{'24':'0.60x0.31','48':'0.60x0.31','72':'0.60x0.32','144':'0.60x0.34'},
+              'ALTOS':{'24':'0.48x0.48','48':'0.48x0.48','72':'0.48x0.48','144':'0.69x0.69','216':'0.70x0.70','432':'0.91x0.91'},
+              'SST Flat Dielectric Drop':{'1':'0.21x0.21','4':'0.32x0.17','6':'0.32x0.17','8':'0.32x0.17','12':'0.32x0.17','24':null},
+              'FDH Tail':{'24':'0.41x0.41','48':'0.41x0.41','72':'0.44x0.44','144':'0.51x0.51','216':'0.71x0.71','288':'0.80x0.80','432':'0.83x0.83'},
+              'Drop':{'1':'0.21x0.21'}
+             }
+var CLimit = {'SST-Ribbon':{'Armored':{'24':{'nFNAP':'0.47'},'48':{'nFNAP':'0.47'},'72':{'nFNAP':'0.51'},'144':{'nFNAP':'0.55'},'216':{'nFNAP':'0.74'}},
+                         'Dielectric':{'24':{'nFNAP':'0.41'},'48':{'nFNAP':'0.41'},'72':{'nFNAP':'0.44'},'144':{'nFNAP':'0.51'},'216':{'nFNAP':'0.71'}}
+                           },
+              'RocketRibbon':{'Armored':{'288':{'nFNAP':'0.81'},'360':{'nFNAP':'0.87'},'432':{'nFNAP':'0.86'},'576':{'nFNAP':'0.96'},'864':{'nFNAP':'0.96'},'1728':{'nFNAP':'1.10'}},
+                           'Dielectric':{'288':{'nFNAP':'0.80'},'360':{'nFNAP':'0.82'},'432':{'nFNAP':'0.83'},'576':{'nFNAP':'0.92'},'864':{'nFNAP':'0.92'},'1728':{'nFNAP':'1.02'},'3456':{'nFNAP':'1.30'}}
+                             },
+              'RPX':{'24':{'FNAP':'1.29','nFNAP':'0.60'},'48':{'FNAP':'1.29','nFNAP':'0.60'},'72':{'FNAP':'1.29','nFNAP':'0.60'},'144':{'FNAP':'1.29','nFNAP':'0.60'}},
+              'ALTOS':{'24':{'FNAP':'1.76','nFNAP':'0.48'},'48':{'FNAP':'1.76','nFNAP':'0.48'},'72':{'FNAP':'1.76','nFNAP':'0.48'},
+                       '144':{'FNAP':'2.00','nFNAP':'0.69'},'216':{'FNAP':'2.00','nFNAP':'0.70'},'432':{'FNAP':'2.00','nFNAP':'0.91'}
+                      },
+              'SST Flat Dielectric Drop':{'1':{'nFNAP':'0.47'},'4':{'nFNAP':'0.70'},'6':{'nFNAP':'0.70'},'8':{'nFNAP':'0.70'},'12':{'nFNAP':'0.70'},'24':null},
+              'FDH Tail':{'24':{'nFNAP':'0.41'},'48':{'nFNAP':'0.41'},'72':{'nFNAP':'0.44'},'144':{'nFNAP':'0.51'},'216':{'nFNAP':'0.71'},'288':{'nFNAP':'0.80'},'432':{'nFNAP':'0.83'}},
+              'Drop':{'1':{'nFNAP':'0.47'}}
+             }
+var Limiters = {'SST-Ribbon':{'Armored':{'24':{'nFNAP':'Cable Diameter'},'48':{'nFNAP':'Cable Diameter'},'72':{'nFNAP':'Cable Diameter'},'144':{'nFNAP':'Cable Diameter'},'216':{'nFNAP':'Cable Diameter'}},
+                           'Dielectric':{'24':{'nFNAP':'Cable Diameter'},'48':{'nFNAP':'Cable Diameter'},'72':{'nFNAP':'Cable Diameter'},'144':{'nFNAP':'Cable Diameter'},'216':{'nFNAP':'Cable Diameter'}}
+                             },
+                'RocketRibbon':{'Armored':{'288':{'nFNAP':'Cable Diameter'},'360':{'nFNAP':'Cable Diameter'},'432':{'nFNAP':'Cable Diameter'},'576':{'nFNAP':'Cable Diameter'},'864':{'nFNAP':'Cable Diameter'},'1728':{'nFNAP':'Cable Diameter'}},
+                             'Dielectric':{'288':{'nFNAP':'Cable Diameter'},'360':{'nFNAP':'Cable Diameter'},'432':{'nFNAP':'Cable Diameter'},'576':{'nFNAP':'Cable Diameter'},'864':{'nFNAP':'Cable Diameter'},'1728':{'nFNAP':'Cable Diameter'},'3456':{'nFNAP':'Cable Diameter'}}
+                               },
+                'RPX':{'24':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},'48':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},
+                       '72':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},'144':{'FNAP':'Overmold','nFNAP':'Cable Diameter'}},
+                'ALTOS':{'24':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},'48':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},
+                         '72':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},'144':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},'216':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},'432':{'FNAP':'Overmold','nFNAP':'Cable Diameter'}
+                        },
+                'SST Flat Dielectric Drop':{'1':{'nFNAP':'Pushlok Connector'},'4':{'nFNAP':'Optitip Connector'},'6':{'nFNAP':'Optitip Connector'},'8':{'nFNAP':'Optitip Connector'},'12':{'nFNAP':'Optitip Connector'},'24':null},
+                'FDH Tail':{'24':{'nFNAP':'Cable Diameter'},'48':{'nFNAP':'Cable Diameter'},'72':{'nFNAP':'Cable Diameter'},'144':{'nFNAP':'Cable Diameter'},'216':{'nFNAP':'Cable Diameter'},'288':{'nFNAP':'Cable Diameter'},'432':{'nFNAP':'Cable Diameter'}},
+                'Drop':{'1':{'nFNAP':'Pushlok Connector'}}
+               }
+var CUnits = {'SST-Ribbon':{'Armored':{'24':'1x2','48':'1x4','72':'1x6','144':'1x12','216':'1x18'},
+                         'Dielectric':{'24':'1x2','48':'1x4','72':'1x6','144':'1x12','216':'1x18'}
+                           },
+              'RocketRibbon':{'Armored':{'288':'1x12','360':'1x15','432':'1x18','576':'1x18','864':'1x28','1728':'6x16'},
+                           'Dielectric':{'288':'1x12','360':'1x15','432':'1x18','576':'1x18','864':'1x28','1728':'6x16','3456':'12x16'}
+                             },
+              'RPX':{'24':'1x2','48':'1x4','72':'1x6','144':'1x12'},
+              'ALTOS':{'24':'1x2','48':'1x4','72':'1x6','144':'1x12','216':'1x18','432':'1x36'},
+              'SST Flat Dielectric Drop':{'1':'1x1','4':'1x1','6':'1x1','8':'1x1','12':'1x1','24':null},
+              'FDH Tail':{'24':'1x2','48':'1x4','72':'1x6','144':'1x12','216':'1x18','288':'1x12','432':'1x18'},
+              'Drop':{'1':'1x1'}
+             }
+var CArran = {'SST-Ribbon':{'Armored':{'24':'2x12','48':'4x12','72':'6x12','144':'12x12','216':'18x12'},
+                         'Dielectric':{'24':'2x12','48':'4x12','72':'6x12','144':'12x12','216':'18x12'}
+                           },
+              'RocketRibbon':{'Armored':{'288':'12x24','360':'15x24','432':'18x24','576':'3x24/12x36/3x24','864':'6x24/16x36/6x24','1728':'4x12/8x24/4x12'},
+                           'Dielectric':{'288':'12x24','360':'15x24','432':'18x24','576':'3x24/12x36/3x24','864':'6x24/16x36/6x24','1728':'4x12/8x24/4x12','3456':'4x12/8x24/4x12'}
+                             },
+              'RPX':{'24':'2x12','48':'4x12','72':'6x12','144':'12x12'},
+              'ALTOS':{'24':'2x12','48':'4x12','72':'6x12','144':'12x12','216':'6x12/12x12','432':'6x12/12x12/18x12'},
+              'SST Flat Dielectric Drop':{'1':'1x1','4':'1x4','6':'1x6','8':'1x8','12':'1x12','24':null},
+              'FDH Tail':{'24':'2x12','48':'4x12','72':'6x12','144':'12x12','216':'18x12','288':'12x24','432':'18x24'},
+              'Drop':{'1':'1x1'}
+             }
+
+var FNAP = iif(Find('FlexNAP',T)>=0,'FNAP','nFNAP')
+var key1 = iif(CS==null,T,CS)
+var key2 = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),Type,Text(Ct))
+var key3 = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),Text(Ct),null)
+
+var Size = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),CSizes[key1][key2][key3],CSizes[key1][key2])
+Console(CS+'/'+Type+'/'+T+'/'+Ct+' - '+Size)
+var Limit = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),CLimit[key1][key2][key3][FNAP],CLimit[key1][key2][FNAP])
+Console(CS+'/'+Type+'/'+T+'/'+Ct+' - '+Limit)
+var Limiter = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),Limiters[key1][key2][key3][FNAP],Limiters[key1][key2][FNAP])
+Console(CS+'/'+Type+'/'+T+'/'+Ct+' - '+Limiter)
+var Units = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),CUnits[key1][key2][key3],CUnits[key1][key2])
+Console(CS+'/'+Type+'/'+T+'/'+Ct+' - '+Units)
+var Arran = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),CArran[key1][key2][key3],CArran[key1][key2])
+Console(CS+'/'+Type+'/'+T+'/'+Ct+' - '+Arran)
+
+return Limit",,,False,True,False,,,2147483647,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Limitting Feature,,CALCULATION,,Limitting_Feature,True,True,False,True,"if ($feature.SUBTYPE_CODE==1) {return $feature.Limitting_Feature}
+
+var oldCS = $originalfeature.Cable_Series; var CS = $feature.Cable_Series
+var oldType = $originalfeature.Cable_Type; var Type = $feature.Cable_Type
+var oldT = $originalfeature.Transmedia_Type; var T = $feature.Transmedia_Type
+var oldCt = $originalfeature.Total_Fibers; var Ct = $feature.Total_Fibers
+
+if ((oldCS==CS && oldType==Type && oldT==T && oldCt==Ct) && $feature.Limitting_Feature!=null) {return $feature.Limitting_Feature}
+
+var Vars = [CS,Type,T,Ct]
+for (var V in Vars) {
+  if (V==0 && Includes([10,11,12],$feature.SUBTYPE_CODE)) {continue}
+  if (Vars[V]==null) {return 'Null in Cab_Ser/Cab_Type/Tran_Type/Tot_Fib'}
+}
+
+//var CSizes = {'SST-Ribbon':{'FNAP':{},'nFNAP':{}},'RocketRibbon':{'FNAP':{},'nFNAP':{}},'RPX':{'FNAP':{},'nFNAP':{}},'ALTOS':{'FNAP':{},'nFNAP':{}},'Other':{'FNAP':{},'nFNAP':{}}}
+var CSizes = {'SST-Ribbon':{'Armored':{'24':'0.47x0.47','48':'0.47x0.47','72':'0.51x0.51','144':'0.55x0.55','216':'0.74x0.74'},
+                         'Dielectric':{'24':'0.41x0.41','48':'0.41x0.41','72':'0.44x0.44','144':'0.51x0.51','216':'0.71x0.71'}
+                           },
+              'RocketRibbon':{'Armored':{'288':'0.81x0.81','360':'0.87x0.87','432':'0.86x0.86','576':'0.96x0.96','864':'0.96x0.96','1728':'1.10x1.10'},
+                           'Dielectric':{'288':'0.80x0.80','360':'0.82x0.82','432':'0.83x0.83','576':'0.92x0.92','864':'0.92x0.92','1728':'1.02x1.02','3456':'1.30x1.30'}
+                             },
+              'RPX':{'24':'0.60x0.31','48':'0.60x0.31','72':'0.60x0.32','144':'0.60x0.34'},
+              'ALTOS':{'24':'0.48x0.48','48':'0.48x0.48','72':'0.48x0.48','144':'0.69x0.69','216':'0.70x0.70','432':'0.91x0.91'},
+              'SST Flat Dielectric Drop':{'1':'0.21x0.21','4':'0.32x0.17','6':'0.32x0.17','8':'0.32x0.17','12':'0.32x0.17','24':null},
+              'FDH Tail':{'24':'0.41x0.41','48':'0.41x0.41','72':'0.44x0.44','144':'0.51x0.51','216':'0.71x0.71','288':'0.80x0.80','432':'0.83x0.83'},
+              'Drop':{'1':'0.21x0.21'}
+             }
+var CLimit = {'SST-Ribbon':{'Armored':{'24':{'nFNAP':'0.47'},'48':{'nFNAP':'0.47'},'72':{'nFNAP':'0.51'},'144':{'nFNAP':'0.55'},'216':{'nFNAP':'0.74'}},
+                         'Dielectric':{'24':{'nFNAP':'0.41'},'48':{'nFNAP':'0.41'},'72':{'nFNAP':'0.44'},'144':{'nFNAP':'0.51'},'216':{'nFNAP':'0.71'}}
+                           },
+              'RocketRibbon':{'Armored':{'288':{'nFNAP':'0.81'},'360':{'nFNAP':'0.87'},'432':{'nFNAP':'0.86'},'576':{'nFNAP':'0.96'},'864':{'nFNAP':'0.96'},'1728':{'nFNAP':'1.10'}},
+                           'Dielectric':{'288':{'nFNAP':'0.80'},'360':{'nFNAP':'0.82'},'432':{'nFNAP':'0.83'},'576':{'nFNAP':'0.92'},'864':{'nFNAP':'0.92'},'1728':{'nFNAP':'1.02'},'3456':{'nFNAP':'1.30'}}
+                             },
+              'RPX':{'24':{'FNAP':'1.29','nFNAP':'0.60'},'48':{'FNAP':'1.29','nFNAP':'0.60'},'72':{'FNAP':'1.29','nFNAP':'0.60'},'144':{'FNAP':'1.29','nFNAP':'0.60'}},
+              'ALTOS':{'24':{'FNAP':'1.76','nFNAP':'0.48'},'48':{'FNAP':'1.76','nFNAP':'0.48'},'72':{'FNAP':'1.76','nFNAP':'0.48'},
+                       '144':{'FNAP':'2.00','nFNAP':'0.69'},'216':{'FNAP':'2.00','nFNAP':'0.70'},'432':{'FNAP':'2.00','nFNAP':'0.91'}
+                      },
+              'SST Flat Dielectric Drop':{'1':{'nFNAP':'0.47'},'4':{'nFNAP':'0.70'},'6':{'nFNAP':'0.70'},'8':{'nFNAP':'0.70'},'12':{'nFNAP':'0.70'},'24':null},
+              'FDH Tail':{'24':{'nFNAP':'0.41'},'48':{'nFNAP':'0.41'},'72':{'nFNAP':'0.44'},'144':{'nFNAP':'0.51'},'216':{'nFNAP':'0.71'},'288':{'nFNAP':'0.80'},'432':{'nFNAP':'0.83'}},
+              'Drop':{'1':{'nFNAP':'0.47'}}
+             }
+var Limiters = {'SST-Ribbon':{'Armored':{'24':{'nFNAP':'Cable Diameter'},'48':{'nFNAP':'Cable Diameter'},'72':{'nFNAP':'Cable Diameter'},'144':{'nFNAP':'Cable Diameter'},'216':{'nFNAP':'Cable Diameter'}},
+                           'Dielectric':{'24':{'nFNAP':'Cable Diameter'},'48':{'nFNAP':'Cable Diameter'},'72':{'nFNAP':'Cable Diameter'},'144':{'nFNAP':'Cable Diameter'},'216':{'nFNAP':'Cable Diameter'}}
+                             },
+                'RocketRibbon':{'Armored':{'288':{'nFNAP':'Cable Diameter'},'360':{'nFNAP':'Cable Diameter'},'432':{'nFNAP':'Cable Diameter'},'576':{'nFNAP':'Cable Diameter'},'864':{'nFNAP':'Cable Diameter'},'1728':{'nFNAP':'Cable Diameter'}},
+                             'Dielectric':{'288':{'nFNAP':'Cable Diameter'},'360':{'nFNAP':'Cable Diameter'},'432':{'nFNAP':'Cable Diameter'},'576':{'nFNAP':'Cable Diameter'},'864':{'nFNAP':'Cable Diameter'},'1728':{'nFNAP':'Cable Diameter'},'3456':{'nFNAP':'Cable Diameter'}}
+                               },
+                'RPX':{'24':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},'48':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},
+                       '72':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},'144':{'FNAP':'Overmold','nFNAP':'Cable Diameter'}},
+                'ALTOS':{'24':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},'48':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},
+                         '72':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},'144':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},'216':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},'432':{'FNAP':'Overmold','nFNAP':'Cable Diameter'}
+                        },
+                'SST Flat Dielectric Drop':{'1':{'nFNAP':'Pushlok Connector'},'4':{'nFNAP':'Optitip Connector'},'6':{'nFNAP':'Optitip Connector'},'8':{'nFNAP':'Optitip Connector'},'12':{'nFNAP':'Optitip Connector'},'24':null},
+                'FDH Tail':{'24':{'nFNAP':'Cable Diameter'},'48':{'nFNAP':'Cable Diameter'},'72':{'nFNAP':'Cable Diameter'},'144':{'nFNAP':'Cable Diameter'},'216':{'nFNAP':'Cable Diameter'},'288':{'nFNAP':'Cable Diameter'},'432':{'nFNAP':'Cable Diameter'}},
+                'Drop':{'1':{'nFNAP':'Pushlok Connector'}}
+               }
+var CUnits = {'SST-Ribbon':{'Armored':{'24':'1x2','48':'1x4','72':'1x6','144':'1x12','216':'1x18'},
+                         'Dielectric':{'24':'1x2','48':'1x4','72':'1x6','144':'1x12','216':'1x18'}
+                           },
+              'RocketRibbon':{'Armored':{'288':'1x12','360':'1x15','432':'1x18','576':'1x18','864':'1x28','1728':'6x16'},
+                           'Dielectric':{'288':'1x12','360':'1x15','432':'1x18','576':'1x18','864':'1x28','1728':'6x16','3456':'12x16'}
+                             },
+              'RPX':{'24':'1x2','48':'1x4','72':'1x6','144':'1x12'},
+              'ALTOS':{'24':'1x2','48':'1x4','72':'1x6','144':'1x12','216':'1x18','432':'1x36'},
+              'SST Flat Dielectric Drop':{'1':'1x1','4':'1x1','6':'1x1','8':'1x1','12':'1x1','24':null},
+              'FDH Tail':{'24':'1x2','48':'1x4','72':'1x6','144':'1x12','216':'1x18','288':'1x12','432':'1x18'},
+              'Drop':{'1':'1x1'}
+             }
+var CArran = {'SST-Ribbon':{'Armored':{'24':'2x12','48':'4x12','72':'6x12','144':'12x12','216':'18x12'},
+                         'Dielectric':{'24':'2x12','48':'4x12','72':'6x12','144':'12x12','216':'18x12'}
+                           },
+              'RocketRibbon':{'Armored':{'288':'12x24','360':'15x24','432':'18x24','576':'3x24/12x36/3x24','864':'6x24/16x36/6x24','1728':'4x12/8x24/4x12'},
+                           'Dielectric':{'288':'12x24','360':'15x24','432':'18x24','576':'3x24/12x36/3x24','864':'6x24/16x36/6x24','1728':'4x12/8x24/4x12','3456':'4x12/8x24/4x12'}
+                             },
+              'RPX':{'24':'2x12','48':'4x12','72':'6x12','144':'12x12'},
+              'ALTOS':{'24':'2x12','48':'4x12','72':'6x12','144':'12x12','216':'6x12/12x12','432':'6x12/12x12/18x12'},
+              'SST Flat Dielectric Drop':{'1':'1x1','4':'1x4','6':'1x6','8':'1x8','12':'1x12','24':null},
+              'FDH Tail':{'24':'2x12','48':'4x12','72':'6x12','144':'12x12','216':'18x12','288':'12x24','432':'18x24'},
+              'Drop':{'1':'1x1'}
+             }
+
+var FNAP = iif(Find('FlexNAP',T)>=0,'FNAP','nFNAP')
+var key1 = iif(CS==null,T,CS)
+var key2 = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),Type,Text(Ct))
+var key3 = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),Text(Ct),null)
+
+var Size = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),CSizes[key1][key2][key3],CSizes[key1][key2])
+Console(CS+'/'+Type+'/'+T+'/'+Ct+' - '+Size)
+var Limit = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),CLimit[key1][key2][key3][FNAP],CLimit[key1][key2][FNAP])
+Console(CS+'/'+Type+'/'+T+'/'+Ct+' - '+Limit)
+var Limiter = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),Limiters[key1][key2][key3][FNAP],Limiters[key1][key2][FNAP])
+Console(CS+'/'+Type+'/'+T+'/'+Ct+' - '+Limiter)
+var Units = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),CUnits[key1][key2][key3],CUnits[key1][key2])
+Console(CS+'/'+Type+'/'+T+'/'+Ct+' - '+Units)
+var Arran = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),CArran[key1][key2][key3],CArran[key1][key2])
+Console(CS+'/'+Type+'/'+T+'/'+Ct+' - '+Arran)
+
+return Limiter",,,False,True,False,,,2147483647,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Subunits Count,,CALCULATION,,Subunits_Count,True,True,False,True,"if ($feature.SUBTYPE_CODE==1) {return $feature.Subunits_Count}
+
+var oldCS = $originalfeature.Cable_Series; var CS = $feature.Cable_Series
+var oldType = $originalfeature.Cable_Type; var Type = $feature.Cable_Type
+var oldT = $originalfeature.Transmedia_Type; var T = $feature.Transmedia_Type
+var oldCt = $originalfeature.Total_Fibers; var Ct = $feature.Total_Fibers
+
+if ((oldCS==CS && oldType==Type && oldT==T && oldCt==Ct) && $feature.Subunits_Count!=null) {return $feature.Subunits_Count}
+
+var Vars = [CS,Type,T,Ct]
+for (var V in Vars) {
+  if (V==0 && Includes([10,11,12],$feature.SUBTYPE_CODE)) {continue}
+  if (Vars[V]==null) {return 'Null in Cab_Ser/Cab_Type/Tran_Type/Tot_Fib'}
+}
+
+//var CSizes = {'SST-Ribbon':{'FNAP':{},'nFNAP':{}},'RocketRibbon':{'FNAP':{},'nFNAP':{}},'RPX':{'FNAP':{},'nFNAP':{}},'ALTOS':{'FNAP':{},'nFNAP':{}},'Other':{'FNAP':{},'nFNAP':{}}}
+var CSizes = {'SST-Ribbon':{'Armored':{'24':'0.47x0.47','48':'0.47x0.47','72':'0.51x0.51','144':'0.55x0.55','216':'0.74x0.74'},
+                         'Dielectric':{'24':'0.41x0.41','48':'0.41x0.41','72':'0.44x0.44','144':'0.51x0.51','216':'0.71x0.71'}
+                           },
+              'RocketRibbon':{'Armored':{'288':'0.81x0.81','360':'0.87x0.87','432':'0.86x0.86','576':'0.96x0.96','864':'0.96x0.96','1728':'1.10x1.10'},
+                           'Dielectric':{'288':'0.80x0.80','360':'0.82x0.82','432':'0.83x0.83','576':'0.92x0.92','864':'0.92x0.92','1728':'1.02x1.02','3456':'1.30x1.30'}
+                             },
+              'RPX':{'24':'0.60x0.31','48':'0.60x0.31','72':'0.60x0.32','144':'0.60x0.34'},
+              'ALTOS':{'24':'0.48x0.48','48':'0.48x0.48','72':'0.48x0.48','144':'0.69x0.69','216':'0.70x0.70','432':'0.91x0.91'},
+              'SST Flat Dielectric Drop':{'1':'0.21x0.21','4':'0.32x0.17','6':'0.32x0.17','8':'0.32x0.17','12':'0.32x0.17','24':null},
+              'FDH Tail':{'24':'0.41x0.41','48':'0.41x0.41','72':'0.44x0.44','144':'0.51x0.51','216':'0.71x0.71','288':'0.80x0.80','432':'0.83x0.83'},
+              'Drop':{'1':'0.21x0.21'}
+             }
+var CLimit = {'SST-Ribbon':{'Armored':{'24':{'nFNAP':'0.47'},'48':{'nFNAP':'0.47'},'72':{'nFNAP':'0.51'},'144':{'nFNAP':'0.55'},'216':{'nFNAP':'0.74'}},
+                         'Dielectric':{'24':{'nFNAP':'0.41'},'48':{'nFNAP':'0.41'},'72':{'nFNAP':'0.44'},'144':{'nFNAP':'0.51'},'216':{'nFNAP':'0.71'}}
+                           },
+              'RocketRibbon':{'Armored':{'288':{'nFNAP':'0.81'},'360':{'nFNAP':'0.87'},'432':{'nFNAP':'0.86'},'576':{'nFNAP':'0.96'},'864':{'nFNAP':'0.96'},'1728':{'nFNAP':'1.10'}},
+                           'Dielectric':{'288':{'nFNAP':'0.80'},'360':{'nFNAP':'0.82'},'432':{'nFNAP':'0.83'},'576':{'nFNAP':'0.92'},'864':{'nFNAP':'0.92'},'1728':{'nFNAP':'1.02'},'3456':{'nFNAP':'1.30'}}
+                             },
+              'RPX':{'24':{'FNAP':'1.29','nFNAP':'0.60'},'48':{'FNAP':'1.29','nFNAP':'0.60'},'72':{'FNAP':'1.29','nFNAP':'0.60'},'144':{'FNAP':'1.29','nFNAP':'0.60'}},
+              'ALTOS':{'24':{'FNAP':'1.76','nFNAP':'0.48'},'48':{'FNAP':'1.76','nFNAP':'0.48'},'72':{'FNAP':'1.76','nFNAP':'0.48'},
+                       '144':{'FNAP':'2.00','nFNAP':'0.69'},'216':{'FNAP':'2.00','nFNAP':'0.70'},'432':{'FNAP':'2.00','nFNAP':'0.91'}
+                      },
+              'SST Flat Dielectric Drop':{'1':{'nFNAP':'0.47'},'4':{'nFNAP':'0.70'},'6':{'nFNAP':'0.70'},'8':{'nFNAP':'0.70'},'12':{'nFNAP':'0.70'},'24':null},
+              'FDH Tail':{'24':{'nFNAP':'0.41'},'48':{'nFNAP':'0.41'},'72':{'nFNAP':'0.44'},'144':{'nFNAP':'0.51'},'216':{'nFNAP':'0.71'},'288':{'nFNAP':'0.80'},'432':{'nFNAP':'0.83'}},
+              'Drop':{'1':{'nFNAP':'0.47'}}
+             }
+var Limiters = {'SST-Ribbon':{'Armored':{'24':{'nFNAP':'Cable Diameter'},'48':{'nFNAP':'Cable Diameter'},'72':{'nFNAP':'Cable Diameter'},'144':{'nFNAP':'Cable Diameter'},'216':{'nFNAP':'Cable Diameter'}},
+                           'Dielectric':{'24':{'nFNAP':'Cable Diameter'},'48':{'nFNAP':'Cable Diameter'},'72':{'nFNAP':'Cable Diameter'},'144':{'nFNAP':'Cable Diameter'},'216':{'nFNAP':'Cable Diameter'}}
+                             },
+                'RocketRibbon':{'Armored':{'288':{'nFNAP':'Cable Diameter'},'360':{'nFNAP':'Cable Diameter'},'432':{'nFNAP':'Cable Diameter'},'576':{'nFNAP':'Cable Diameter'},'864':{'nFNAP':'Cable Diameter'},'1728':{'nFNAP':'Cable Diameter'}},
+                             'Dielectric':{'288':{'nFNAP':'Cable Diameter'},'360':{'nFNAP':'Cable Diameter'},'432':{'nFNAP':'Cable Diameter'},'576':{'nFNAP':'Cable Diameter'},'864':{'nFNAP':'Cable Diameter'},'1728':{'nFNAP':'Cable Diameter'},'3456':{'nFNAP':'Cable Diameter'}}
+                               },
+                'RPX':{'24':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},'48':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},
+                       '72':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},'144':{'FNAP':'Overmold','nFNAP':'Cable Diameter'}},
+                'ALTOS':{'24':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},'48':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},
+                         '72':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},'144':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},'216':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},'432':{'FNAP':'Overmold','nFNAP':'Cable Diameter'}
+                        },
+                'SST Flat Dielectric Drop':{'1':{'nFNAP':'Pushlok Connector'},'4':{'nFNAP':'Optitip Connector'},'6':{'nFNAP':'Optitip Connector'},'8':{'nFNAP':'Optitip Connector'},'12':{'nFNAP':'Optitip Connector'},'24':null},
+                'FDH Tail':{'24':{'nFNAP':'Cable Diameter'},'48':{'nFNAP':'Cable Diameter'},'72':{'nFNAP':'Cable Diameter'},'144':{'nFNAP':'Cable Diameter'},'216':{'nFNAP':'Cable Diameter'},'288':{'nFNAP':'Cable Diameter'},'432':{'nFNAP':'Cable Diameter'}},
+                'Drop':{'1':{'nFNAP':'Pushlok Connector'}}
+               }
+var CUnits = {'SST-Ribbon':{'Armored':{'24':'1x2','48':'1x4','72':'1x6','144':'1x12','216':'1x18'},
+                         'Dielectric':{'24':'1x2','48':'1x4','72':'1x6','144':'1x12','216':'1x18'}
+                           },
+              'RocketRibbon':{'Armored':{'288':'1x12','360':'1x15','432':'1x18','576':'1x18','864':'1x28','1728':'6x16'},
+                           'Dielectric':{'288':'1x12','360':'1x15','432':'1x18','576':'1x18','864':'1x28','1728':'6x16','3456':'12x16'}
+                             },
+              'RPX':{'24':'1x2','48':'1x4','72':'1x6','144':'1x12'},
+              'ALTOS':{'24':'1x2','48':'1x4','72':'1x6','144':'1x12','216':'1x18','432':'1x36'},
+              'SST Flat Dielectric Drop':{'1':'1x1','4':'1x1','6':'1x1','8':'1x1','12':'1x1','24':null},
+              'FDH Tail':{'24':'1x2','48':'1x4','72':'1x6','144':'1x12','216':'1x18','288':'1x12','432':'1x18'},
+              'Drop':{'1':'1x1'}
+             }
+var CArran = {'SST-Ribbon':{'Armored':{'24':'2x12','48':'4x12','72':'6x12','144':'12x12','216':'18x12'},
+                         'Dielectric':{'24':'2x12','48':'4x12','72':'6x12','144':'12x12','216':'18x12'}
+                           },
+              'RocketRibbon':{'Armored':{'288':'12x24','360':'15x24','432':'18x24','576':'3x24/12x36/3x24','864':'6x24/16x36/6x24','1728':'4x12/8x24/4x12'},
+                           'Dielectric':{'288':'12x24','360':'15x24','432':'18x24','576':'3x24/12x36/3x24','864':'6x24/16x36/6x24','1728':'4x12/8x24/4x12','3456':'4x12/8x24/4x12'}
+                             },
+              'RPX':{'24':'2x12','48':'4x12','72':'6x12','144':'12x12'},
+              'ALTOS':{'24':'2x12','48':'4x12','72':'6x12','144':'12x12','216':'6x12/12x12','432':'6x12/12x12/18x12'},
+              'SST Flat Dielectric Drop':{'1':'1x1','4':'1x4','6':'1x6','8':'1x8','12':'1x12','24':null},
+              'FDH Tail':{'24':'2x12','48':'4x12','72':'6x12','144':'12x12','216':'18x12','288':'12x24','432':'18x24'},
+              'Drop':{'1':'1x1'}
+             }
+
+var FNAP = iif(Find('FlexNAP',T)>=0,'FNAP','nFNAP')
+var key1 = iif(CS==null,T,CS)
+var key2 = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),Type,Text(Ct))
+var key3 = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),Text(Ct),null)
+
+var Size = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),CSizes[key1][key2][key3],CSizes[key1][key2])
+Console(CS+'/'+Type+'/'+T+'/'+Ct+' - '+Size)
+var Limit = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),CLimit[key1][key2][key3][FNAP],CLimit[key1][key2][FNAP])
+Console(CS+'/'+Type+'/'+T+'/'+Ct+' - '+Limit)
+var Limiter = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),Limiters[key1][key2][key3][FNAP],Limiters[key1][key2][FNAP])
+Console(CS+'/'+Type+'/'+T+'/'+Ct+' - '+Limiter)
+var Units = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),CUnits[key1][key2][key3],CUnits[key1][key2])
+Console(CS+'/'+Type+'/'+T+'/'+Ct+' - '+Units)
+var Arran = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),CArran[key1][key2][key3],CArran[key1][key2])
+Console(CS+'/'+Type+'/'+T+'/'+Ct+' - '+Arran)
+
+return Units",,,False,True,False,,,2147483647,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Subunits Arrangement,,CALCULATION,,Subunits_Arrangement,True,True,False,True,"if ($feature.SUBTYPE_CODE==1) {return $feature.Subunits_Arrangement}
+
+var oldCS = $originalfeature.Cable_Series; var CS = $feature.Cable_Series
+var oldType = $originalfeature.Cable_Type; var Type = $feature.Cable_Type
+var oldT = $originalfeature.Transmedia_Type; var T = $feature.Transmedia_Type
+var oldCt = $originalfeature.Total_Fibers; var Ct = $feature.Total_Fibers
+
+if ((oldCS==CS && oldType==Type && oldT==T && oldCt==Ct) && $feature.Subunits_Arrangement!=null) {return $feature.Subunits_Arrangement}
+
+var Vars = [CS,Type,T,Ct]
+for (var V in Vars) {
+  if (V==0 && Includes([10,11,12],$feature.SUBTYPE_CODE)) {continue}
+  if (Vars[V]==null) {return 'Null in Cab_Ser/Cab_Type/Tran_Type/Tot_Fib'}
+}
+
+//var CSizes = {'SST-Ribbon':{'FNAP':{},'nFNAP':{}},'RocketRibbon':{'FNAP':{},'nFNAP':{}},'RPX':{'FNAP':{},'nFNAP':{}},'ALTOS':{'FNAP':{},'nFNAP':{}},'Other':{'FNAP':{},'nFNAP':{}}}
+var CSizes = {'SST-Ribbon':{'Armored':{'24':'0.47x0.47','48':'0.47x0.47','72':'0.51x0.51','144':'0.55x0.55','216':'0.74x0.74'},
+                         'Dielectric':{'24':'0.41x0.41','48':'0.41x0.41','72':'0.44x0.44','144':'0.51x0.51','216':'0.71x0.71'}
+                           },
+              'RocketRibbon':{'Armored':{'288':'0.81x0.81','360':'0.87x0.87','432':'0.86x0.86','576':'0.96x0.96','864':'0.96x0.96','1728':'1.10x1.10'},
+                           'Dielectric':{'288':'0.80x0.80','360':'0.82x0.82','432':'0.83x0.83','576':'0.92x0.92','864':'0.92x0.92','1728':'1.02x1.02','3456':'1.30x1.30'}
+                             },
+              'RPX':{'24':'0.60x0.31','48':'0.60x0.31','72':'0.60x0.32','144':'0.60x0.34'},
+              'ALTOS':{'24':'0.48x0.48','48':'0.48x0.48','72':'0.48x0.48','144':'0.69x0.69','216':'0.70x0.70','432':'0.91x0.91'},
+              'SST Flat Dielectric Drop':{'1':'0.21x0.21','4':'0.32x0.17','6':'0.32x0.17','8':'0.32x0.17','12':'0.32x0.17','24':null},
+              'FDH Tail':{'24':'0.41x0.41','48':'0.41x0.41','72':'0.44x0.44','144':'0.51x0.51','216':'0.71x0.71','288':'0.80x0.80','432':'0.83x0.83'},
+              'Drop':{'1':'0.21x0.21'}
+             }
+var CLimit = {'SST-Ribbon':{'Armored':{'24':{'nFNAP':'0.47'},'48':{'nFNAP':'0.47'},'72':{'nFNAP':'0.51'},'144':{'nFNAP':'0.55'},'216':{'nFNAP':'0.74'}},
+                         'Dielectric':{'24':{'nFNAP':'0.41'},'48':{'nFNAP':'0.41'},'72':{'nFNAP':'0.44'},'144':{'nFNAP':'0.51'},'216':{'nFNAP':'0.71'}}
+                           },
+              'RocketRibbon':{'Armored':{'288':{'nFNAP':'0.81'},'360':{'nFNAP':'0.87'},'432':{'nFNAP':'0.86'},'576':{'nFNAP':'0.96'},'864':{'nFNAP':'0.96'},'1728':{'nFNAP':'1.10'}},
+                           'Dielectric':{'288':{'nFNAP':'0.80'},'360':{'nFNAP':'0.82'},'432':{'nFNAP':'0.83'},'576':{'nFNAP':'0.92'},'864':{'nFNAP':'0.92'},'1728':{'nFNAP':'1.02'},'3456':{'nFNAP':'1.30'}}
+                             },
+              'RPX':{'24':{'FNAP':'1.29','nFNAP':'0.60'},'48':{'FNAP':'1.29','nFNAP':'0.60'},'72':{'FNAP':'1.29','nFNAP':'0.60'},'144':{'FNAP':'1.29','nFNAP':'0.60'}},
+              'ALTOS':{'24':{'FNAP':'1.76','nFNAP':'0.48'},'48':{'FNAP':'1.76','nFNAP':'0.48'},'72':{'FNAP':'1.76','nFNAP':'0.48'},
+                       '144':{'FNAP':'2.00','nFNAP':'0.69'},'216':{'FNAP':'2.00','nFNAP':'0.70'},'432':{'FNAP':'2.00','nFNAP':'0.91'}
+                      },
+              'SST Flat Dielectric Drop':{'1':{'nFNAP':'0.47'},'4':{'nFNAP':'0.70'},'6':{'nFNAP':'0.70'},'8':{'nFNAP':'0.70'},'12':{'nFNAP':'0.70'},'24':null},
+              'FDH Tail':{'24':{'nFNAP':'0.41'},'48':{'nFNAP':'0.41'},'72':{'nFNAP':'0.44'},'144':{'nFNAP':'0.51'},'216':{'nFNAP':'0.71'},'288':{'nFNAP':'0.80'},'432':{'nFNAP':'0.83'}},
+              'Drop':{'1':{'nFNAP':'0.47'}}
+             }
+var Limiters = {'SST-Ribbon':{'Armored':{'24':{'nFNAP':'Cable Diameter'},'48':{'nFNAP':'Cable Diameter'},'72':{'nFNAP':'Cable Diameter'},'144':{'nFNAP':'Cable Diameter'},'216':{'nFNAP':'Cable Diameter'}},
+                           'Dielectric':{'24':{'nFNAP':'Cable Diameter'},'48':{'nFNAP':'Cable Diameter'},'72':{'nFNAP':'Cable Diameter'},'144':{'nFNAP':'Cable Diameter'},'216':{'nFNAP':'Cable Diameter'}}
+                             },
+                'RocketRibbon':{'Armored':{'288':{'nFNAP':'Cable Diameter'},'360':{'nFNAP':'Cable Diameter'},'432':{'nFNAP':'Cable Diameter'},'576':{'nFNAP':'Cable Diameter'},'864':{'nFNAP':'Cable Diameter'},'1728':{'nFNAP':'Cable Diameter'}},
+                             'Dielectric':{'288':{'nFNAP':'Cable Diameter'},'360':{'nFNAP':'Cable Diameter'},'432':{'nFNAP':'Cable Diameter'},'576':{'nFNAP':'Cable Diameter'},'864':{'nFNAP':'Cable Diameter'},'1728':{'nFNAP':'Cable Diameter'},'3456':{'nFNAP':'Cable Diameter'}}
+                               },
+                'RPX':{'24':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},'48':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},
+                       '72':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},'144':{'FNAP':'Overmold','nFNAP':'Cable Diameter'}},
+                'ALTOS':{'24':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},'48':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},
+                         '72':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},'144':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},'216':{'FNAP':'Overmold','nFNAP':'Cable Diameter'},'432':{'FNAP':'Overmold','nFNAP':'Cable Diameter'}
+                        },
+                'SST Flat Dielectric Drop':{'1':{'nFNAP':'Pushlok Connector'},'4':{'nFNAP':'Optitip Connector'},'6':{'nFNAP':'Optitip Connector'},'8':{'nFNAP':'Optitip Connector'},'12':{'nFNAP':'Optitip Connector'},'24':null},
+                'FDH Tail':{'24':{'nFNAP':'Cable Diameter'},'48':{'nFNAP':'Cable Diameter'},'72':{'nFNAP':'Cable Diameter'},'144':{'nFNAP':'Cable Diameter'},'216':{'nFNAP':'Cable Diameter'},'288':{'nFNAP':'Cable Diameter'},'432':{'nFNAP':'Cable Diameter'}},
+                'Drop':{'1':{'nFNAP':'Pushlok Connector'}}
+               }
+var CUnits = {'SST-Ribbon':{'Armored':{'24':'1x2','48':'1x4','72':'1x6','144':'1x12','216':'1x18'},
+                         'Dielectric':{'24':'1x2','48':'1x4','72':'1x6','144':'1x12','216':'1x18'}
+                           },
+              'RocketRibbon':{'Armored':{'288':'1x12','360':'1x15','432':'1x18','576':'1x18','864':'1x28','1728':'6x16'},
+                           'Dielectric':{'288':'1x12','360':'1x15','432':'1x18','576':'1x18','864':'1x28','1728':'6x16','3456':'12x16'}
+                             },
+              'RPX':{'24':'1x2','48':'1x4','72':'1x6','144':'1x12'},
+              'ALTOS':{'24':'1x2','48':'1x4','72':'1x6','144':'1x12','216':'1x18','432':'1x36'},
+              'SST Flat Dielectric Drop':{'1':'1x1','4':'1x1','6':'1x1','8':'1x1','12':'1x1','24':null},
+              'FDH Tail':{'24':'1x2','48':'1x4','72':'1x6','144':'1x12','216':'1x18','288':'1x12','432':'1x18'},
+              'Drop':{'1':'1x1'}
+             }
+var CArran = {'SST-Ribbon':{'Armored':{'24':'2x12','48':'4x12','72':'6x12','144':'12x12','216':'18x12'},
+                         'Dielectric':{'24':'2x12','48':'4x12','72':'6x12','144':'12x12','216':'18x12'}
+                           },
+              'RocketRibbon':{'Armored':{'288':'12x24','360':'15x24','432':'18x24','576':'3x24/12x36/3x24','864':'6x24/16x36/6x24','1728':'4x12/8x24/4x12'},
+                           'Dielectric':{'288':'12x24','360':'15x24','432':'18x24','576':'3x24/12x36/3x24','864':'6x24/16x36/6x24','1728':'4x12/8x24/4x12','3456':'4x12/8x24/4x12'}
+                             },
+              'RPX':{'24':'2x12','48':'4x12','72':'6x12','144':'12x12'},
+              'ALTOS':{'24':'2x12','48':'4x12','72':'6x12','144':'12x12','216':'6x12/12x12','432':'6x12/12x12/18x12'},
+              'SST Flat Dielectric Drop':{'1':'1x1','4':'1x4','6':'1x6','8':'1x8','12':'1x12','24':null},
+              'FDH Tail':{'24':'2x12','48':'4x12','72':'6x12','144':'12x12','216':'18x12','288':'12x24','432':'18x24'},
+              'Drop':{'1':'1x1'}
+             }
+
+var FNAP = iif(Find('FlexNAP',T)>=0,'FNAP','nFNAP')
+var key1 = iif(CS==null,T,CS)
+var key2 = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),Type,Text(Ct))
+var key3 = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),Text(Ct),null)
+
+var Size = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),CSizes[key1][key2][key3],CSizes[key1][key2])
+Console(CS+'/'+Type+'/'+T+'/'+Ct+' - '+Size)
+var Limit = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),CLimit[key1][key2][key3][FNAP],CLimit[key1][key2][FNAP])
+Console(CS+'/'+Type+'/'+T+'/'+Ct+' - '+Limit)
+var Limiter = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),Limiters[key1][key2][key3][FNAP],Limiters[key1][key2][FNAP])
+Console(CS+'/'+Type+'/'+T+'/'+Ct+' - '+Limiter)
+var Units = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),CUnits[key1][key2][key3],CUnits[key1][key2])
+Console(CS+'/'+Type+'/'+T+'/'+Ct+' - '+Units)
+var Arran = iif(Includes(['SST-Ribbon','RocketRibbon'],CS),CArran[key1][key2][key3],CArran[key1][key2])
+Console(CS+'/'+Type+'/'+T+'/'+Ct+' - '+Arran)
+
+return Arran",,,False,True,False,,,2147483647,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Update Offset Cables,,CALCULATION,,Offset_Distance,True,False,False,True,"var COffs = FeatureSetByName($datastore,'Transmedia_Offset',['ObjectID','Related_OID','Related_GUID'],true)
+
+var CGUID = $feature.Cable_GUID
+Console(""Related_GUID = \'""+Text(CGUID)+""\'"")
+var COMatch = Filter(COffs,""Related_GUID = \'""+Text(CGUID)+""\'"")
+if (Count(COMatch)==0) {return}
+
+var Cablefields = ['Comments','Work_Order_ID','Project_Name','Calculated_Length','Slack_Loops','Slack_Length','Adjusted_Length','Order_Length','Status','Route_ID','Cable_ID','SUBTYPE_CODE',
+ 'Total_Fibers','Cable_Series','Cable_Type','Cable_Structure','Network_Type','Transmedia_Type','Toneable','Nominal_OD','Limitting_OD','Limitting_Feature',
+ 'Subunits_Count','Subunits_Arrangement','Active_Fibers','Active_Starts','Active_Ends','Spare_Fibers','Dead_Fibers','Fiber_Count','PON_Count','Attenuation',
+ 'From_Transmedia','To_Transmedia','From_Splice_Closure','To_Splice_Closure','From_Equipment','To_Equipment','From_Structure','To_Structure',
+ 'PAMs','SLAMs','Alignments','Drop_Access','DropDist_to_Acc','DropDist_to_NID']
+
+var attupdates = {}
+var editCt = 0
+Expects($feature, ""*"");
+for (var field in $feature) {
+ if (!Includes(Cablefields,field)) {continue}
+ Console(field)
+ if (Text($feature[field])!=Text($originalfeature[field])) {attupdates[field]=$feature[field]; editCt++}
+}
+if (editCt==0) {return}
+
+var COffupdates = []
+for (var CO in COMatch) {
+ var COMOID = CO.ObjectID
+ var COffdata = {'ObjectID':COMOID,'attributes':attupdates}
+ Push(COffupdates,COffdata)
+}
+
+return {
+ 'result':$feature.Offset_Distance,
+ 'edit':[
+ {'className':'Transmedia_Offset',
+ 'updates':COffupdates}
+ ]
+}",,,True,True,False,,,2147483647,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Delete Related Slack Loops,,CALCULATION,,Cable_GUID,True,False,True,False,"var CGUID = $originalfeature.Cable_GUID
+Console(CGUID)
+var SLs = Filter(FeatureSetByName($datastore,'Slack_Loop',['ObjectID','Cable_GUID'],true),""Cable_GUID = @CGUID"")
+var GraSLs = Filter(FeatureSetByName($datastore,'Graphics_Point',['ObjectID','SUBTYPE_CODE','Label3'],true),""Label3 = @CGUID And SUBTYPE_CODE IN (2,3,4)"")
+if (Count(SLs)==0 && Count(GraSLs)==0) {return $feature.Cable_GUID}
+var SLdels = []
+var GraPtdels = []
+for (var SL in SLs) {Push(SLdels,{'ObjectID':SL.ObjectID})}
+for (var SL in GraSLs) {Push(GraPtdels,{'ObjectID':SL.ObjectID})}
+Console(SLdels)
+Console(GraPtdels)
+return {
+  'result':$feature.Cable_GUID,
+  'edit':[
+    {'className':'Slack_Loop',
+    'deletes':SLdels},
+    {'className':'Graphics_Point',
+    'deletes':GraPtdels}
+  ]
+}",,,True,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Delete Related Offset Cables,,CALCULATION,,Cable_GUID,True,False,True,False,"var CGUID = $originalfeature.Cable_GUID
+Console(CGUID)
+var OffCs = Filter(FeatureSetByName($datastore,'Transmedia_Offset',['ObjectID','Related_GUID'],true),""Related_GUID = @CGUID"")
+if (Count(OffCs)==0) {return $feature.Cable_GUID}
+var OffCdels = []
+for (var OC in OffCs) {Push(OffCdels,{'ObjectID':OC.ObjectID})}
+Console(OffCdels)
+return {
+  'result':$feature.Cable_GUID,
+  'edit':[
+    {'className':'Transmedia_Offset',
+    'deletes':OffCdels}
+  ]
+}",,,True,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Ordered Structures/Spans,,CALCULATION,,PAMs,True,True,False,True,"var ST = $feature.SUBTYPE_CODE
+if (Includes([10,11,12],ST)) {return}
+
+var CablesOffs = FeatureSetByName($datastore,'Transmedia_Offset',['Related_GUID'],true)
+var UGSTRs = FeatureSetByName($datastore,'UG_Structure',['ObjectID','STR_ID'],true)
+var Spans = FeatureSetByName($datastore,'Span',['ObjectID','SPAN_LEN'],true)
+var EQs = Filter(FeatureSetByName($datastore,'Equipment',['ObjectID','Equipment_Type','Output_Ports','PON_Count'],true),""Equipment_Type IN ('MST','Future Loop')"")
+var intersectingSpans = Intersects(Geometry($feature),spans)
+var SpanTracker = []
+var SpanOIDCheck = []
+
+var Geom = Geometry($feature)
+var Pts = Geom['paths'][0]
+var FOID = $feature.OBJECTID; var FGUID = $feature.Cable_GUID; var FID = $feature.Cable_ID
+var EOffs = Filter(CablesOffs,""Related_GUID = '""+FGUID+""'"")
+if (Count(EOffs)==0) {return}
+if (Find(':',$feature.PON_Count)<0) {return {'errorMessage':'Cable OID: '+FOID+' has bad PON_Count format.'}}
+var PONs = Split($feature.PON_Count,':')[-1]
+var PONLow = Number(Split(PONs,'-')[0]); var PONHigh = Number(Split(PONs,'-')[-1])
+
+var SlackLoops = Filter(FeatureSetByName($datastore,'Slack_Loop',['ObjectID','Cable_GUID','Length_Adjustment'],true),""Cable_GUID = '""+FGUID+""'"")
+
+//Iterate through vertices to find Structure, Span, Slack, and Terminals/Future Loops
+for (var Pt in Pts) {
+  var P = Pts[Pt]
+  var Pdata = []
+  //Store structure ID
+  var intUGSTRs = Intersects(P,UGSTRs)
+  for (var STR in intUGSTRs) {
+    Push(Pdata,STR.STR_ID)
+  }
+  //Find only Spans contained by the cable, store Span OID and Length
+  var intSpans = Intersects(P,Contains(Geom,Spans))
+  for (var S in intSpans) {
+    if (!Includes(SpanOIDCheck,S.ObjectID)) {
+      Push(Pdata,'S:'+S.ObjectID+'/'+S.SPAN_LEN)
+    }
+    Push(SpanOIDCheck,S.ObjectID)
+  }
+  //Store Slack Loop OID
+  var intSLs = Intersects(P,SlackLoops)
+  for (var SL in intSLs) {
+    Push(Pdata,'SL:'+SL.ObjectID+'/'+SL.Length_Adjustment)
+  }
+  //Store Equipment if PON_Count ranges overlap
+  var intEQs = Intersects(P,EQs)
+  for (var EQ in intEQs) {
+    var EQType = EQ.Equipment_Type; var Ports = EQ.Output_Ports
+    //Check EQ PONs, Ignore equipment when PON ranges is outside PON range of cable
+    if (Find(':',EQ.PON_Count)<0) {return {'errorMessage':'EQ OID: '+EQ.ObjectID+' has bad PON_Count format.'}}
+    var EQPONs = Split(EQ.PON_Count,':')[-1]
+    var EQPONLow = Number(Split(EQPONs,'-')[0]); var EQPONHigh = Number(Split(EQPONs,'-')[-1])
+    if (EQPONLow<PONLow || EQPONHigh>PONHigh) {continue}
+    //Establish Type and ID for associated equipment
+    var EQID = null
+    if (EQType=='MST') {EQID = Ports+'P:'+EQPONs}
+    if (EQType=='Future Loop') {EQID = 'FL:'+EQPONs}
+    Push(Pdata,EQID)
+  }
+  //If there were any of the above things at the vertex, store that for the Span
+  if (Count(Pdata)>0) {Push(SpanTracker,Pdata)}
+}
+
+return FID+';'+Concatenate(SpanTracker,'; ')",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"

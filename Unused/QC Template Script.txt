@@ -1,0 +1,102 @@
+function convertRowsToColumns() {
+  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  var sourceSheet = spreadsheet.getSheetByName("TransmediaAttributeTableDump");
+  
+  // Create a new sheet for the converted data
+  var targetSheet = spreadsheet.insertSheet("ConvertedData");
+  
+  // Get data from the source sheet
+  var data = sourceSheet.getDataRange().getValues();
+  
+  // Initialize variables
+  var targetData = [];
+  
+  // Loop through each row in the data (ignoring the first row)
+  for (var i = 1; i < data.length; i++) {
+    var rowData = data[i];
+    var heading = rowData[0];
+    
+    // Create a new column of data with the heading and the rest of the row
+    for (var j = 1; j < rowData.length; j++) {
+      targetData.push([heading, rowData[j]]);
+    }
+  }
+  
+  // Write the target data to the target sheet
+  targetSheet.getRange(1, 1, targetData.length, 2).setValues(targetData);
+}
+
+function createColumnFromTransmediaAttributeTable() {
+  var sourceSheetName = "TransmediaAttributeTableDump";
+  var targetSheetName = "Table to Row";
+  var targetColumnStart = 1; // Column A
+  
+  var sourceSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sourceSheetName);
+  var targetSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(targetSheetName);
+  
+  var lastRow = sourceSheet.getLastRow();
+  var dataRange = sourceSheet.getRange(2, 1, lastRow - 1, sourceSheet.getLastColumn());
+  var data = dataRange.getValues();
+  
+  var targetColumn = [];
+  
+  for (var i = 0; i < data.length; i++) {
+    var cableId = data[i][0]; // Assuming Cable_ID is in the first column (column index 0)
+    var spanList = data[i][1]; // Assuming SpanList is in the seventh column (column index 6)
+    
+    if (typeof spanList === "string" && spanList.length > 0) {
+      var spanArray = spanList.split(','); // Split comma-delineated values
+      for (var j = 0; j < spanArray.length; j++) {
+        targetColumn.push([cableId + ': ' + spanArray[j]]);
+      }
+    }
+  }
+  
+  if (targetColumn.length > 0) {
+    targetSheet.getRange(2, targetColumnStart, targetColumn.length, 1).setValues(targetColumn);
+  }
+}
+
+function convertColumnToColumnsWithHeaders() {
+  var targetSheetName = "Table to Row";
+  var sourceColumnIndex = 1; // Column A
+  
+  var targetSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(targetSheetName);
+  
+  var lastRow = targetSheet.getLastRow();
+  var dataRange = targetSheet.getRange(2, sourceColumnIndex, lastRow - 1, 1);
+  var data = dataRange.getValues();
+  
+  var headers = {};
+  var newData = [];
+  
+  // Process data to build headers and new data array
+  for (var i = 0; i < data.length; i++) {
+    var cellValue = data[i][0];
+    var separatorIndex = cellValue.indexOf(':');
+    
+    if (separatorIndex !== -1) {
+      var header = cellValue.substring(0, separatorIndex);
+      var value = cellValue.substring(separatorIndex + 2); // +2 to skip ": "
+      
+      if (!headers[header]) {
+        headers[header] = [];
+      }
+      
+      headers[header].push([value]);
+    }
+  }
+  
+  var headerRow = Object.keys(headers);
+  
+  // Write header row
+  targetSheet.getRange(1, sourceColumnIndex + 1, 1, headerRow.length).setValues([headerRow]);
+  
+  // Write data to new columns
+  var columnIndex = sourceColumnIndex + 1;
+  for (var header in headers) {
+    var columnData = headers[header];
+    targetSheet.getRange(2, columnIndex, columnData.length, 1).setValues(columnData);
+    columnIndex++;
+  }
+}

@@ -1,0 +1,292 @@
+﻿NAME,DESCRIPTION,TYPE,SUBTYPE,FIELD,ISEDITABLE,TRIGGERINSERT,TRIGGERDELETE,TRIGGERUPDATE,SCRIPTEXPRESSION,ERRORNUMBER,ERRORMESSAGE,EXCLUDECLIENTEVALUATION,ISENABLED,BATCH,SEVERITY,TAGS,CATEGORY,CHECKPARAMETERS
+Equipment UNID,Calculate Equipment UNID,CALCULATION,,UNID,True,True,False,True,"If (($feature.ENVIRONMENT == ""Building"") && ($feature.EQUIPMENT_TYPE == ""FFDF"")){
+Return ""FFDF:BLDG::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+else if (($feature.ENVIRONMENT == ""Building"") && ($feature.EQUIPMENT_TYPE == ""RODAM"")){
+Return ""RODAM:BLDG::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+else if (($feature.ENVIRONMENT == ""Building"") && ($feature.EQUIPMENT_TYPE == ""OLT"")){
+Return ""OLT:BLDG::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+else if (($feature.ENVIRONMENT == ""Underground"") && ($feature.EQUIPMENT_TYPE == ""OLT"")){
+Return ""OLT:UG::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+else if (($feature.ENVIRONMENT == ""Building"") && ($feature.EQUIPMENT_TYPE == ""Router"")){
+Return ""ROUTER:BLDG::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+else if (($feature.ENVIRONMENT == ""Underground"") && ($feature.EQUIPMENT_TYPE == ""FDH"")){
+Return ""FDH:UG::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+else if (($feature.ENVIRONMENT == ""Aerial"") && ($feature.EQUIPMENT_TYPE == ""FDH"")){
+Return ""FDH:AER::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+else if (($feature.ENVIRONMENT == ""Aerial"") && ($feature.EQUIPMENT_TYPE == ""MST"")){
+Return ""MST:AER::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+else if (($feature.ENVIRONMENT == ""Underground"") && ($feature.EQUIPMENT_TYPE == ""MST"")){
+Return ""MST:UG::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+else if (($feature.ENVIRONMENT == ""Aerial"") && ($feature.EQUIPMENT_TYPE == ""MHT"")){
+Return ""MHT:AER::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+else if (($feature.ENVIRONMENT == ""Underground"") && ($feature.EQUIPMENT_TYPE == ""MHT"")){
+Return ""MHT:UG::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+else if (($feature.ENVIRONMENT == ""Aerial"") && ($feature.EQUIPMENT_TYPE == ""FBT"")){
+Return ""FBT:AER::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+else if (($feature.ENVIRONMENT == ""Underground"") && ($feature.EQUIPMENT_TYPE == ""FBT"")){
+Return ""FBT:UG::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+else if (($feature.ENVIRONMENT == ""Aerial"") && ($feature.EQUIPMENT_TYPE == ""VMST"")){
+Return ""VMST:AER::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+else if (($feature.ENVIRONMENT == ""Underground"") && ($feature.EQUIPMENT_TYPE == ""VMST"")){
+Return ""VMST:UG::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+else if (($feature.ENVIRONMENT == ""Aerial"") && ($feature.EQUIPMENT_TYPE == ""Termination Panel"")){
+Return ""TPANEL:AER::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+else if (($feature.ENVIRONMENT == ""Underground"") && ($feature.EQUIPMENT_TYPE == ""Termination Panel"")){
+Return ""TPANEL:UG::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+else if (($feature.ENVIRONMENT == ""Building"") && ($feature.EQUIPMENT_TYPE == ""Termination Panel"")){
+Return ""TPANEL:BLDG::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+else if (($feature.ENVIRONMENT == ""Building"") && ($feature.EQUIPMENT_TYPE == ""Power Supply"")){
+Return ""PWRSUP:BLDG::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+else if (($feature.ENVIRONMENT == ""Underground"") && ($feature.EQUIPMENT_TYPE == ""Splitter"")){
+Return ""SPLIT:UG::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}",,,False,False,False,,,2147483647,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Placement Address,Nearest address to feature placement,CALCULATION,,PLACED_ADDRESS,True,True,False,True,"if ($feature.PLACED_ADDRESS!=null) {return $feature.PLACED_ADDRESS}
+var oldGeo = geometry($originalFeature)
+var newGeo = geometry($feature)
+var searchDistance = 500
+var PlaceAdd = Null
+if (!Equals(newGeo,oldGeo) || $feature.PLACED_ADDRESS==null) {
+  var DP = FeatureSetByName($datastore, ""Demand_Point"", [""Address""])
+  var DPIntersect = Intersects(DP, BufferGeodetic($feature, searchDistance, ""feet""))
+  var countDP = Count(DPIntersect)
+
+  var minDistance = 500
+  if (countDP > 0) {
+    for (var Demand in DPIntersect) {
+      var Demand_geo = Point(Geometry(Demand))
+      var FDH = Point(Geometry($feature))
+      var dist = DistanceGeodetic(Demand_geo, FDH, ""feet"")
+      if (dist < minDistance) {
+        PlaceAdd = Demand.Address
+        minDistance = dist
+      }
+    }
+    return PlaceAdd
+  } 
+  else {
+    return ""No address point found within "" + searchDistance + ""'.""
+  }
+}",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Page Number,,CALCULATION,,EQUIP_PAGE,True,True,False,True,"var Frames = FeatureSetByName($datastore,'Frames_PlanView',[""PageFinal""],true)
+var intFrame = Within($feature, Frames)
+var Frame = First(intFrame)
+
+iif(IsEmpty(Frame),null,Frame.PageFinal)",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Structure ID,,CALCULATION,,STRUCTURE_UNID,True,True,False,True,"var sql = ""STRUCTURE_TYPE IN ('Hand Hole','Pedestal','Pole')""
+var STRs = Filter(FeatureSetByName($datastore, ""UG_Structure"", ['ObjectID',""STR_ID"",'SUBTYPE_CODE','GlobalID','Pole_GUID'], true), sql)
+var IDs = []
+var Ints = Intersects(Geometry($feature), STRs)
+for (var I in Ints) {
+    Push(IDs,Text(I.STR_ID))
+}
+
+if (Text(IDs)=='[]' && ($originalfeature.STRUCTURE_UNID!=null || $originalfeature.STRUCTURE_UNID!='[""""]')) {return $originalfeature.STRUCTURE_UNID}
+return IDs",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Rotation Match,,CALCULATION,,ROTATION_SYM,True,True,False,True,"var searchDist = 10
+var sql = ""STRUCTURE_TYPE = 'Hand Hole'""
+
+var UG_Structure = Filter(FeatureSetByName($datastore, ""UG_Structure"", [""STR_ID"",""ROTATION_SYM""], true), sql)
+var nearStructure = Intersects(BufferGeodetic(Geometry($feature), searchDist, ""feet""), UG_Structure)
+var matchedStructure = First(nearStructure)
+
+return iif(IsEmpty(matchedStructure), null, matchedStructure.ROTATION_SYM)",,,False,False,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Address List,,CALCULATION,,ADD_LIST,True,True,False,True,"if ($feature.EQUIPMENT_TYPE == 'PFP') {
+  var FDAs = FeatureSetByName($datastore, 'FDA', [""TOTAL_DEMAND_POINTS""], true)
+  var matchedFDA = Within(Geometry($feature), FDAs)
+  var FDA = First(matchedFDA)
+
+  return iif(IsEmpty(FDA), null, FDA.TOTAL_DEMAND_POINTS)
+}
+if (Includes(['MST','NDX','Future Loop'],$feature.EQUIPMENT_TYPE)) {
+  var SAs = Filter(FeatureSetByName($datastore,'Serving_Area',['ObjectID','SUBTYPE_CODE','TOTAL_DEMAND_POINTS','ASSOC_EQUIPMENT'],true),""SUBTYPE_CODE = 2"")
+  var DPs = FeatureSetByName($datastore,'Demand_Point',['ObjectID','SUBTYPE_CODE','Address'],true)
+  var intSAs = Within(Geometry($feature),SAs)
+  var Demands = []
+  for (var SA in intSAs) {
+    if (Text($feature.OBJECTID)!=Text(SA.ASSOC_EQUIPMENT)) {continue}
+    Demands = Intersects(SA,DPs)
+  }
+  var DPList = []
+  for (var D in Demands) {
+    Push(DPList,iif(IsEmpty(D.Address),'UNKNOWN ADDRESS',D.Address))
+  }
+
+  return iif(Count(DPList)==0,Text([]),Text(DPList))
+}",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Work Order ID,,CALCULATION,,WORK_ORDER_ID,True,True,False,True,"var FDA = First(Intersects($feature,FeatureSetByName($datastore,'FDA',[""WORK_ORDER_ID""],true)))
+iif(IsEmpty(FDA),null,FDA.WORK_ORDER_ID)",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Rotate to Offset Cable,,CALCULATION,,Rotation,True,True,False,True,"//Placeholder
+function closest_feature(test_feature, compare_feature_set) {
+  // returns the feature of compare_feature_set that is closest to test_feature
+  Console('Closest_Feature')
+  var min_distance = 100000
+  var closest_feature = null
+  for(var f in compare_feature_set) {
+    var d = DistanceGeodetic(test_feature, Geometry(f), 'feet')
+    if (d < min_distance) {
+      min_distance = d
+      closest_feature = f
+    }
+  }
+  return closest_feature
+}
+
+function project_orthogonally(point_geometry, line_geometry) {
+  Console('Project_Orthogonally')
+  var p = point_geometry
+  var r0 = line_geometry['paths'][0][0]
+  var r1 = line_geometry['paths'][-1][-1]
+  var ux = r1['x'] - r0['x']
+  var uy = r1['y'] - r0['y']
+  var lambda = ((p['x']-r0['x'])*ux + (p['y']-r0['y'])*uy) / (ux*ux + uy*uy)
+  var new_p = Point({""x"": r0['x'] + lambda * ux, ""y"": r0['y'] + lambda * uy, ""spatialReference"": {'wkid':4326}})
+  //If new_p is on the line defined by r0 and r1 but not on the actual line_geometry, snap it to the closest end point
+  if (Disjoint(new_p, line_geometry)) {
+    new_p = iif(DistanceGeodetic(r0, p, 'feet') < DistanceGeodetic(r1, p, 'feet'), r0, r1)
+  }
+  return new_p
+}
+
+//Exclude structures NOT of these subtypes
+var toRot = [1,3,4,5,6]
+if (!Includes(toRot,$feature.SUBTYPE_CODE)) {return $feature.rotation}
+
+var sql = iif($feature.SUBTYPE_CODE==1,""Offset_Increment > 5"",""Offset_Increment <= 5"")
+var fs_lines = Filter(FeatureSetByName($datastore, ""Transmedia_Offset""),sql)
+fs_lines = Intersects(fs_lines, BufferGeodetic($feature, 50, 'feet'))
+Console(Count(fs_lines))
+var closest_line_geometry = null
+var ProjPts = {""fields"": [], ""spatialReference"": {'wkid':4326}, ""geometryType"": ""esriGeometryPoint"", ""features"": []}
+if (Count(fs_lines)>0) {for (var line in fs_lines) {
+    var vertices = Geometry(line)['paths'][0]
+    for(var s=0; s<Count(vertices)-1; s++) {
+        var p0 = vertices[s]
+        var p1 = vertices[s+1]
+        var seg = Polyline({""paths"": [[ [p0['x'], p0['y']], [p1['x'], p1['y']] ]], ""spatialReference"": {'wkid':4326}})
+        Console('Segment:\n' + seg)
+        var ProjPt = project_orthogonally(Geometry($feature), seg)
+        Console('Projected Point:\n' + ProjPt)
+        Push(ProjPts['features'], {""geometry"": ProjPt})
+    }
+}}
+Console('Projected Points:\n' + ProjPts)
+ProjPts = FeatureSet(Text(ProjPts))
+
+var ProjPt = Geometry(closest_feature(Geometry($feature), ProjPts))
+Console('Closest Point:\n' + ProjPt)
+var NearEOP = First(Intersects(fs_lines,ProjPt))
+
+function AutoRotate(closest_line_geometry, ProjPt) {
+    //Find the first intersecting line from the intersecting class
+    var line = closest_line_geometry
+
+    //If no feature was found, return the original value
+    if (line == null) {
+       return $feature.rotation
+    }
+    //Buffer the point by a small amount to extract the segment
+    var search = Extent(BufferGeodetic(ProjPt, 0.1, ""feet""))
+    var segment = Clip(line, search)[""paths""][0]
+
+    //Start and end points of the line
+    var x1 = segment[0]['x']
+    var y1 = segment[0]['y']
+    var x2 = segment[-1]['x']
+    var y2 = segment[-1]['y']
+
+    //Arithmetic angle (counter-clockwise from + X axis)
+    var degrees = Atan2(y2 - y1, x2 - x1) * 180 / PI;
+    var val = ((degrees + 360) % 360)
+
+    if ((val <= 90) || (val >=270)) {
+        return val
+    } else {
+        return (val - 180)
+    }
+}
+Console('rotation: ' + AutoRotate(NearEOP, ProjPt))
+return AutoRotate(NearEOP, ProjPt)",,,False,True,False,,,2147483647,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Symbology Rotation,,CALCULATION,,ROTATION_SYM,True,True,False,True,"return $feature.Rotation + $feature.Rotation_Help
+",,,False,True,False,,,2147483647,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Assign GUID,,CALCULATION,,Equip_GUID,True,True,False,True,"var EGUID = $feature.Equip_GUID
+
+return iif(EGUID==null,Upper(Guid()),EGUID)",,,True,True,False,,,2147483647,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Equipment ID,,CALCULATION,,EQUIP_ID,True,True,False,True,"var oldPAdd = $originalfeature.PLACED_ADDRESS; var newPAdd = $feature.PLACED_ADDRESS
+var oldRLoc = $originalfeature.Relative_Location; var newRLoc = $feature.Relative_Location
+
+if ($feature.EQUIP_ID!=null && (oldPAdd==newPAdd) && (oldRLoc==newRLoc)) {return $feature.EQUIP_ID}
+var Rel = iif($feature.Relative_Location==null,'F ',$feature.Relative_Location+' ')
+var HNum = iif($feature.PLACED_ADDRESS==null,'UNK',Split($feature.PLACED_ADDRESS,' ')[0])
+Console(Rel+HNum)
+return Rel+HNum",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Update Related Graphic Points,,CALCULATION,,Equip_GUID,True,False,False,True,"$feature.OUTPUT_PORTS; $feature.PON_COUNT; $feature.Stub_Length
+
+var GraPts = FeatureSetByName($datastore,'Graphics_Point',['ObjectID','Related_GUID','Label1','Label2','Label3'],true)
+
+var EGUID = $feature.EQUIP_GUID
+Console(""Related_GUID = \'""+Text(EGUID)+""\'"")
+var GraMatch = Filter(GraPts,""Related_GUID = \'""+Text(EGUID)+""\'"")
+if (Count(GraMatch)==0) {return}
+
+var fields = ['OUTPUT_PORTS','PON_COUNT','Stub_Length']
+
+var attupdates = {}
+var editCt = 0
+for (var f in fields) {
+  var field = Text(fields[f])
+  if (Text($feature[field])!=Text($originalfeature[field])) {
+    if (field=='OUTPUT_PORTS') {attupdates['Label1']=$feature[field]}
+    if (field=='PON_COUNT') {attupdates['Label2']=$feature[field]}
+    if (field=='Stub_Length') {attupdates['Label3']=$feature[field]}
+    editCt++
+  }
+}
+if (editCt==0) {return}
+
+var GraPtupdates = []
+for (var Gra in GraMatch) {
+  var GraOID = Gra.ObjectID
+  var GraPtdata = {'ObjectID':GraOID,'attributes':attupdates}
+  Push(GraPtupdates,GraPtdata)
+}
+
+return {
+  'result':$feature.EQUIP_GUID,
+  'edit':[
+    {'className':'Graphics_Point',
+     'updates':GraPtupdates}
+  ]
+}",,,True,True,False,,,2147483647,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Delete Related Graphics,,CALCULATION,,Equip_GUID,True,False,True,False,"var EGUID = $originalfeature.EQUIP_GUID
+Console(EGUID)
+var GraPts = Filter(FeatureSetByName($datastore,'Graphics_Point',['ObjectID','SUBTYPE_CODE','Related_GUID'],true),""Related_GUID = @EGUID"")
+if (Count(GraPts)==0) {return $feature.EQUIP_GUID}
+var GraPtdels = []
+for (var Gra in GraPts) {Push(GraPtdels,{'ObjectID':Gra.ObjectID})}
+Console(GraPtdels)
+return {
+  'result':$feature.EQUIP_GUID,
+  'edit':[
+    {'className':'Graphics_Point',
+    'deletes':GraPtdels}
+  ]
+}",,,True,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"

@@ -1,0 +1,283 @@
+﻿NAME,DESCRIPTION,TYPE,SUBTYPE,FIELD,ISEDITABLE,TRIGGERINSERT,TRIGGERDELETE,TRIGGERUPDATE,SCRIPTEXPRESSION,ERRORNUMBER,ERRORMESSAGE,EXCLUDECLIENTEVALUATION,ISENABLED,BATCH,SEVERITY,TAGS,CATEGORY,CHECKPARAMETERS
+Route ID,,CALCULATION,,RouteID,True,True,False,True,"var Rs = Filter(FeatureSetByName($datastore,'RoutingHelper',['*'],true),""SUBTYPE_CODE = ""+Number($feature.SUBTYPE_CODE)+"""")
+var intRs = Intersects($feature,Rs)
+Console($feature.OBJECTID)
+var val = null
+for (var R in intRs) {
+  var Geom = Geometry(R)['paths'][0]
+  var End = Geom[-1]
+  if (!Within(End,$feature)) {continue}
+  val = R.ObjectID
+}
+Console(val)
+return val",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Total Outputs,,CALCULATION,,TotalOutputs,True,True,False,True,"var Rs = Filter(FeatureSetByName($datastore,'RoutingHelper',['*'],true),""SUBTYPE_CODE = ""+Number($feature.SUBTYPE_CODE)+"""")
+var intRs = Intersects($feature,Rs)
+Console($feature.OBJECTID)
+var val = null
+for (var R in intRs) {
+  var Geom = Geometry(R)['paths'][0]
+  var End = Geom[-1]
+  if (!Within(End,$feature)) {continue}
+  val = R.TotalOutputs
+}
+Console(val)
+return val",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Fiber Start,,CALCULATION,,FiberStart,True,True,False,True,"var Rs = Filter(FeatureSetByName($datastore,'RoutingHelper',['*'],true),""SUBTYPE_CODE = ""+Number($feature.SUBTYPE_CODE)+"""")
+var intRs = Intersects($feature,Rs)
+Console($feature.OBJECTID)
+var val = null
+for (var R in intRs) {
+  var Geom = Geometry(R)['paths'][0]
+  var End = Geom[-1]
+  if (!Within(End,$feature)) {continue}
+  val = R.FiberStart
+}
+Console(val)
+return val",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Fiber End,,CALCULATION,,FiberEnd,True,True,False,True,"var Rs = Filter(FeatureSetByName($datastore,'RoutingHelper',['*'],true),""SUBTYPE_CODE = ""+Number($feature.SUBTYPE_CODE)+"""")
+var intRs = Intersects($feature,Rs)
+Console($feature.OBJECTID)
+var val = null
+for (var R in intRs) {
+  var Geom = Geometry(R)['paths'][0]
+  var End = Geom[-1]
+  if (!Within(End,$feature)) {continue}
+  val = R.FiberEnd
+}
+Console(val)
+return val",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Count Start,,CALCULATION,,CountStart,True,True,False,True,"var Rs = Filter(FeatureSetByName($datastore,'RoutingHelper',['*'],true),""SUBTYPE_CODE = ""+Number($feature.SUBTYPE_CODE)+"""")
+var intRs = Intersects($feature,Rs)
+Console($feature.OBJECTID)
+var val = null
+for (var R in intRs) {
+  var Geom = Geometry(R)['paths'][0]
+  var End = Geom[-1]
+  if (!Within(End,$feature)) {continue}
+  val = R.CountStart
+}
+Console(val)
+return val",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Count End,,CALCULATION,,CountEnd,True,True,False,True,"var Rs = Filter(FeatureSetByName($datastore,'RoutingHelper',['*'],true),""SUBTYPE_CODE = ""+Number($feature.SUBTYPE_CODE)+"""")
+var intRs = Intersects($feature,Rs)
+Console($feature.OBJECTID)
+var val = null
+for (var R in intRs) {
+  var Geom = Geometry(R)['paths'][0]
+  var End = Geom[-1]
+  if (!Within(End,$feature)) {continue}
+  val = R.CountEnd
+}
+Console(val)
+return val",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Allocations,,CALCULATION,,Allocations,True,True,False,True,"var Rs = Filter(FeatureSetByName($datastore,'RoutingHelper',['*'],true),""SUBTYPE_CODE = ""+Number($feature.SUBTYPE_CODE)+"""")
+var intRs = Intersects($feature,Rs)
+Console($feature.OBJECTID)
+var val = null
+for (var R in intRs) {
+  var Geom = Geometry(R)['paths'][0]
+  var End = Geom[-1]
+  if (!Within(End,$feature)) {continue}
+  val = R.Allocations
+}
+Console(val)
+return val",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Reference Geometry,,CALCULATION,,RefGeometry,True,True,False,True,"var Rs = Filter(FeatureSetByName($datastore,'RoutingHelper',['*'],true),""SUBTYPE_CODE = ""+Number($feature.SUBTYPE_CODE)+"""")
+var Refs = Filter(FeatureSetByName($datastore,'RoutingHelper',['*'],true),""SUBTYPE_CODE = 5"")
+var intRs = Intersects($feature,Rs)
+Console($feature.OBJECTID)
+var val = null
+for (var R in intRs) {
+  var Geom = Geometry(R)['paths'][0]
+  var End = Geom[-1]
+  if (!Within(End,$feature)) {continue}
+  var intRefs = Touches(End,Refs)
+  val = null
+  for (var Ref in intRefs) {
+    var RefEnd = Geometry(Ref)['paths'][0][-1]
+    if (Equals(RefEnd,End)) {val = Ref.ObjectID}
+  }
+}
+Console(val)
+return val",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Ref Geo Cable Series,,CALCULATION,,Cable_Series,True,True,False,True,"var Rs = Filter(FeatureSetByName($datastore,'RoutingHelper',['*'],true),""SUBTYPE_CODE = ""+Number($feature.SUBTYPE_CODE)+"""")
+var Refs = Filter(FeatureSetByName($datastore,'RoutingHelper',['*'],true),""SUBTYPE_CODE = 5"")
+var intRs = Intersects($feature,Rs)
+Console($feature.OBJECTID)
+var val = null
+for (var R in intRs) {
+  var Geom = Geometry(R)['paths'][0]
+  var End = Geom[-1]
+  if (!Within(End,$feature)) {continue}
+  var intRefs = Touches(End,Refs)
+  val = null
+  for (var Ref in intRefs) {
+    var RefEnd = Geometry(Ref)['paths'][0][-1]
+    if (Equals(RefEnd,End)) {val = Ref.Cable_Series}
+  }
+}
+Console(val)
+return val",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Ref Geo Environment,,CALCULATION,,Environment,True,True,False,True,"var Rs = Filter(FeatureSetByName($datastore,'RoutingHelper',['*'],true),""SUBTYPE_CODE = ""+Number($feature.SUBTYPE_CODE)+"""")
+var Refs = Filter(FeatureSetByName($datastore,'RoutingHelper',['*'],true),""SUBTYPE_CODE = 5"")
+var intRs = Intersects($feature,Rs)
+Console($feature.OBJECTID)
+var val = null
+for (var R in intRs) {
+  var Geom = Geometry(R)['paths'][0]
+  var End = Geom[-1]
+  if (!Within(End,$feature)) {continue}
+  var intRefs = Touches(End,Refs)
+  val = null
+  for (var Ref in intRefs) {
+    var RefEnd = Geometry(Ref)['paths'][0][-1]
+    if (Equals(RefEnd,End)) {val = Ref.Environment}
+  }
+}
+Console(val)
+return val",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Ref Geo Transmedia Type,,CALCULATION,,Transmedia_Type,True,True,False,True,"var Rs = Filter(FeatureSetByName($datastore,'RoutingHelper',['*'],true),""SUBTYPE_CODE = ""+Number($feature.SUBTYPE_CODE)+"""")
+var Refs = Filter(FeatureSetByName($datastore,'RoutingHelper',['*'],true),""SUBTYPE_CODE = 5"")
+var intRs = Intersects($feature,Rs)
+Console($feature.OBJECTID)
+var val = null
+for (var R in intRs) {
+  var Geom = Geometry(R)['paths'][0]
+  var End = Geom[-1]
+  if (!Within(End,$feature)) {continue}
+  var intRefs = Touches(End,Refs)
+  val = null
+  for (var Ref in intRefs) {
+    var RefEnd = Geometry(Ref)['paths'][0][-1]
+    if (Equals(RefEnd,End)) {val = Ref.Transmedia_Type}
+  }
+}
+Console(val)
+return val",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Ref Geo Cable Type,,CALCULATION,,Cable_Type,True,True,False,True,"var Rs = Filter(FeatureSetByName($datastore,'RoutingHelper',['*'],true),""SUBTYPE_CODE = ""+Number($feature.SUBTYPE_CODE)+"""")
+var Refs = Filter(FeatureSetByName($datastore,'RoutingHelper',['*'],true),""SUBTYPE_CODE = 5"")
+var intRs = Intersects($feature,Rs)
+Console($feature.OBJECTID)
+var val = null
+for (var R in intRs) {
+  var Geom = Geometry(R)['paths'][0]
+  var End = Geom[-1]
+  if (!Within(End,$feature)) {continue}
+  var intRefs = Touches(End,Refs)
+  val = null
+  for (var Ref in intRefs) {
+    var RefEnd = Geometry(Ref)['paths'][0][-1]
+    if (Equals(RefEnd,End)) {val = Ref.Cable_Type}
+  }
+}
+Console(val)
+return val",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Ref Geo Toneable,,CALCULATION,,Toneable,True,True,False,True,"var Rs = Filter(FeatureSetByName($datastore,'RoutingHelper',['*'],true),""SUBTYPE_CODE = ""+Number($feature.SUBTYPE_CODE)+"""")
+var Refs = Filter(FeatureSetByName($datastore,'RoutingHelper',['*'],true),""SUBTYPE_CODE = 5"")
+var intRs = Intersects($feature,Rs)
+Console($feature.OBJECTID)
+var val = null
+for (var R in intRs) {
+  var Geom = Geometry(R)['paths'][0]
+  var End = Geom[-1]
+  if (!Within(End,$feature)) {continue}
+  var intRefs = Touches(End,Refs)
+  val = null
+  for (var Ref in intRefs) {
+    var RefEnd = Geometry(Ref)['paths'][0][-1]
+    if (Equals(RefEnd,End)) {val = Ref.Toneable}
+  }
+}
+Console(val)
+return val",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Ref Geo Cable Structure,,CALCULATION,,Cable_Structure,True,True,False,True,"var Rs = Filter(FeatureSetByName($datastore,'RoutingHelper',['*'],true),""SUBTYPE_CODE = ""+Number($feature.SUBTYPE_CODE)+"""")
+var Refs = Filter(FeatureSetByName($datastore,'RoutingHelper',['*'],true),""SUBTYPE_CODE = 5"")
+var intRs = Intersects($feature,Rs)
+Console($feature.OBJECTID)
+var val = null
+for (var R in intRs) {
+  var Geom = Geometry(R)['paths'][0]
+  var End = Geom[-1]
+  if (!Within(End,$feature)) {continue}
+  var intRefs = Touches(End,Refs)
+  val = null
+  for (var Ref in intRefs) {
+    var RefEnd = Geometry(Ref)['paths'][0][-1]
+    if (Equals(RefEnd,End)) {val = Ref.Cable_Structure}
+  }
+}
+Console(val)
+return val",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Ref Geo Network Type,,CALCULATION,,Network_Type,True,True,False,True,"var Rs = Filter(FeatureSetByName($datastore,'RoutingHelper',['*'],true),""SUBTYPE_CODE = ""+Number($feature.SUBTYPE_CODE)+"""")
+var Refs = Filter(FeatureSetByName($datastore,'RoutingHelper',['*'],true),""SUBTYPE_CODE = 5"")
+var intRs = Intersects($feature,Rs)
+Console($feature.OBJECTID)
+var val = null
+for (var R in intRs) {
+  var Geom = Geometry(R)['paths'][0]
+  var End = Geom[-1]
+  if (!Within(End,$feature)) {continue}
+  var intRefs = Touches(End,Refs)
+  val = null
+  for (var Ref in intRefs) {
+    var RefEnd = Geometry(Ref)['paths'][0][-1]
+    if (Equals(RefEnd,End)) {val = Ref.Network_Type}
+  }
+}
+Console(val)
+return val",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Ref Geo Cable_GUID,,CALCULATION,,Cable_GUID,True,True,False,True,"var Rs = Filter(FeatureSetByName($datastore,'RoutingHelper',['*'],true),""SUBTYPE_CODE = ""+Number($feature.SUBTYPE_CODE)+"""")
+var Refs = Filter(FeatureSetByName($datastore,'RoutingHelper',['*'],true),""SUBTYPE_CODE = 5"")
+var intRs = Intersects($feature,Rs)
+Console($feature.OBJECTID)
+var val = null
+for (var R in intRs) {
+  var Geom = Geometry(R)['paths'][0]
+  var End = Geom[-1]
+  if (!Within(End,$feature)) {continue}
+  var intRefs = Touches(End,Refs)
+  val = null
+  for (var Ref in intRefs) {
+    var RefEnd = Geometry(Ref)['paths'][0][-1]
+    if (Equals(RefEnd,End)) {val = Ref.Cable_GUID}
+  }
+}
+Console(val)
+return val",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Ref Geo Cable_ID,,CALCULATION,,Cable_ID,True,True,False,True,"var Rs = Filter(FeatureSetByName($datastore,'RoutingHelper',['*'],true),""SUBTYPE_CODE = ""+Number($feature.SUBTYPE_CODE)+"""")
+var Refs = Filter(FeatureSetByName($datastore,'RoutingHelper',['*'],true),""SUBTYPE_CODE = 5"")
+var intRs = Intersects($feature,Rs)
+Console($feature.OBJECTID)
+var val = null
+for (var R in intRs) {
+  var Geom = Geometry(R)['paths'][0]
+  var End = Geom[-1]
+  if (!Within(End,$feature)) {continue}
+  var intRefs = Touches(End,Refs)
+  val = null
+  for (var Ref in intRefs) {
+    var RefEnd = Geometry(Ref)['paths'][0][-1]
+    if (Equals(RefEnd,End)) {val = Ref.Cable_ID}
+  }
+}
+Console(val)
+return val",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Ref Geo Calculated_Length,,CALCULATION,,Calculated_Length,True,True,False,True,"var Rs = Filter(FeatureSetByName($datastore,'RoutingHelper',['*'],true),""SUBTYPE_CODE = ""+Number($feature.SUBTYPE_CODE)+"""")
+var Refs = Filter(FeatureSetByName($datastore,'RoutingHelper',['*'],true),""SUBTYPE_CODE = 5"")
+var intRs = Intersects($feature,Rs)
+Console($feature.OBJECTID)
+var val = null
+for (var R in intRs) {
+  var Geom = Geometry(R)['paths'][0]
+  var End = Geom[-1]
+  if (!Within(End,$feature)) {continue}
+  var intRefs = Touches(End,Refs)
+  val = null
+  for (var Ref in intRefs) {
+    var RefEnd = Geometry(Ref)['paths'][0][-1]
+    if (Equals(RefEnd,End)) {val = Ref.Calculated_Length}
+  }
+}
+Console(val)
+return val",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"

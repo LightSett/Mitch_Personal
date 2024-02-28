@@ -1,0 +1,32 @@
+import os
+import glob
+import openpyxl
+
+# Define the folder path containing the Excel files
+folder_path = "S:\Customers\23 V1Fiber\23.065.001 V1 Corning Lima\Scranton\Weekly Lima Report Data\Cable Length Consolidation"
+
+# Get a list of Excel files in the folder
+excel_files = glob.glob(os.path.join(folder_path, "*.xlsx"))
+
+# Loop through each Excel file
+for excel_file in excel_files:
+    # Extract the first 6 characters of the workbook name
+    new_sheet_name_prefix = os.path.splitext(os.path.basename(excel_file))[0][:6]
+    
+    # Open the Excel file
+    workbook = openpyxl.load_workbook(excel_file)
+    
+    # Loop through each sheet in the workbook
+    for sheet_name in workbook.sheetnames:
+        sheet = workbook[sheet_name]
+        
+        # Rename the sheet to include the first 6 characters of the workbook name
+        new_sheet_name = f"{new_sheet_name_prefix}_{sheet_name}"
+        workbook[sheet_name].title = new_sheet_name
+        
+    # Save the modified Excel file
+    modified_excel_file = os.path.join(folder_path, f"{new_sheet_name_prefix}_{os.path.basename(excel_file)}")
+    workbook.save(modified_excel_file)
+    workbook.close()
+
+print("Sheets in Excel files have been renamed.")

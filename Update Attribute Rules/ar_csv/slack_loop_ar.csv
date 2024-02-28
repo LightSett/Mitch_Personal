@@ -1,0 +1,177 @@
+﻿NAME,DESCRIPTION,TYPE,SUBTYPE,FIELD,ISEDITABLE,TRIGGERINSERT,TRIGGERDELETE,TRIGGERUPDATE,SCRIPTEXPRESSION,ERRORNUMBER,ERRORMESSAGE,EXCLUDECLIENTEVALUATION,ISENABLED,BATCH,SEVERITY,TAGS,CATEGORY,CHECKPARAMETERS
+Update Associated Cable,,CALCULATION,,Cable_GUID,True,True,False,True,"var oldGID = $originalFeature.Cable_GUID; var oldLen = $originalFeature.Length_Adjustment
+var newGID = $feature.Cable_GUID; var newLen = $feature.Length_Adjustment
+var Cableupdates = []
+if (Text(newGID)!=Text(oldGID) || newLen!=oldLen) {
+  var oldAssCable = First(Filter(FeatureSetByName($datastore,'Transmedia',['Cable_GUID'],true),""Cable_GUID = \'""+Text(oldGID)+""\'""))
+  var newAssCable = First(Filter(FeatureSetByName($datastore,'Transmedia',['Cable_GUID'],true),""Cable_GUID = \'""+Text(newGID)+""\'""))
+  if (oldGID!=null && oldAssCable!=null) {Push(Cableupdates,{'ObjectID':oldAssCable.ObjectID})}
+  if (newAssCable!=null) {Push(Cableupdates,{'ObjectID':newAssCable.ObjectID})}
+
+  return {
+    'result':$feature.Cable_GUID,
+    'edit':[
+      {'className':'Transmedia',
+      'updates':Cableupdates}
+    ]
+  }
+}",,,True,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Update Cable upon Delete,,CALCULATION,,Cable_GUID,True,False,True,False,"var oldGID = $originalFeature.Cable_GUID
+var oldAssCable = First(Filter(FeatureSetByName($datastore,'Transmedia',['Cable_GUID'],true),""Cable_GUID = \'""+Text(oldGID)+""\'""))
+if (oldAssCable==null) {return}
+var Cableupdates = []
+Push(Cableupdates,{'ObjectID':oldAssCable.ObjectID})
+
+return {
+  'result':$feature.Cable_GUID,
+  'edit':[
+    {'className':'Transmedia',
+     'updates':Cableupdates}
+  ]
+}",,,True,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Rotate to Offset Cable,,CALCULATION,,Rotation,True,True,False,True,"function closest_feature(test_feature, compare_feature_set) {
+  // returns the feature of compare_feature_set that is closest to test_feature
+  Console('Closest_Feature')
+  var min_distance = 100000
+  var closest_feature = null
+  for(var f in compare_feature_set) {
+    var d = DistanceGeodetic(test_feature, Geometry(f), 'feet')
+    if (d < min_distance) {
+      min_distance = d
+      closest_feature = f
+    }
+  }
+  return closest_feature
+}
+
+function project_orthogonally(point_geometry, line_geometry) {
+  Console('Project_Orthogonally')
+  var p = point_geometry
+  var r0 = line_geometry['paths'][0][0]
+  var r1 = line_geometry['paths'][-1][-1]
+  var ux = r1['x'] - r0['x']
+  var uy = r1['y'] - r0['y']
+  var lambda = ((p['x']-r0['x'])*ux + (p['y']-r0['y'])*uy) / (ux*ux + uy*uy)
+  var new_p = Point({""x"": r0['x'] + lambda * ux, ""y"": r0['y'] + lambda * uy, ""spatialReference"": {'wkid':4326}})
+  //If new_p is on the line defined by r0 and r1 but not on the actual line_geometry, snap it to the closest end point
+  if (Disjoint(new_p, line_geometry)) {
+    new_p = iif(DistanceGeodetic(r0, p, 'feet') < DistanceGeodetic(r1, p, 'feet'), r0, r1)
+  }
+  return new_p
+}
+
+//Exclude structures NOT of these subtypes
+var toRot = [2,3]
+if (!Includes(toRot,$feature.SUBTYPE_CODE)) {return $feature.rotation}
+
+var sql = ""Cable_GUID = \'""+Text($feature.Cable_GUID)+""\'""
+var fs_lines = FeatureSetByName($datastore,""Transmedia"")
+fs_lines = Filter(fs_lines,sql)
+Console(Count(fs_lines))
+var closest_line_geometry = null
+var ProjPts = {""fields"": [], ""spatialReference"": {'wkid':4326}, ""geometryType"": ""esriGeometryPoint"", ""features"": []}
+if (Count(fs_lines)>0) {for (var line in fs_lines) {
+    var vertices = Geometry(line)['paths'][0]
+    for(var s=0; s<Count(vertices)-1; s++) {
+        var p0 = vertices[s]
+        var p1 = vertices[s+1]
+        var seg = Polyline({""paths"": [[ [p0['x'], p0['y']], [p1['x'], p1['y']] ]], ""spatialReference"": {'wkid':4326}})
+        Console('Segment:\n' + seg)
+        var ProjPt = project_orthogonally(Geometry($feature), seg)
+        Console('Projected Point:\n' + ProjPt)
+        Push(ProjPts['features'], {""geometry"": ProjPt})
+    }
+}}
+Console('Projected Points:\n' + ProjPts)
+ProjPts = FeatureSet(Text(ProjPts))
+
+var ProjPt = Geometry(closest_feature(Geometry($feature), ProjPts))
+Console('Closest Point:\n' + ProjPt)
+var NearEOP = First(Intersects(fs_lines,ProjPt))
+
+function AutoRotate(closest_line_geometry, ProjPt) {
+    //Find the first intersecting line from the intersecting class
+    var line = closest_line_geometry
+
+    //If no feature was found, return the original value
+    if (line == null) {
+       return $feature.rotation
+    }
+    //Buffer the point by a small amount to extract the segment
+    var search = Extent(BufferGeodetic(ProjPt, 0.1, ""feet""))
+    var segment = Clip(line, search)[""paths""][0]
+
+    //Start and end points of the line
+    var x1 = segment[0]['x']
+    var y1 = segment[0]['y']
+    var x2 = segment[-1]['x']
+    var y2 = segment[-1]['y']
+
+    //Arithmetic angle (counter-clockwise from + X axis)
+    var degrees = Atan2(y2 - y1, x2 - x1) * 180 / PI;
+    var val = ((degrees + 360) % 360)
+
+    if ((val <= 90) || (val >=270)) {
+        return val
+    } else {
+        return (val - 180)
+    }
+}
+Console('rotation: ' + AutoRotate(NearEOP, ProjPt))
+return AutoRotate(NearEOP, ProjPt)",,,False,True,False,,,2147483647,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Symbology Rotation,,CALCULATION,,Rotation_Sym,True,True,False,True,"return $feature.Rotation + $feature.Rotation_Help
+",,,False,True,False,,,2147483647,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Assign GUID,,CALCULATION,,SlackLoop_GUID,True,True,False,True,"var SLGUID = $feature.SlackLoop_GUID
+
+return iif(SLGUID==null,Upper(Guid()),SLGUID)",,,True,True,False,,,2147483647,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Delete Related Slack Loop Graphics,,CALCULATION,,Cable_GUID,True,False,True,False,"var SLGUID = $originalfeature.SlackLoop_GUID
+Console(SLGUID)
+var GraSLs = Filter(FeatureSetByName($datastore,'Graphics_Point',['ObjectID','SUBTYPE_CODE','Label3','Related_GUID'],true),""Related_GUID = @SLGUID And SUBTYPE_CODE IN (2,3)"")
+if (Count(GraSLs)==0) {return $feature.Cable_GUID}
+var GraPtdels = []
+for (var SL in GraSLs) {Push(GraPtdels,{'ObjectID':SL.ObjectID})}
+Console(GraPtdels)
+return {
+  'result':$feature.Cable_GUID,
+  'edit':[
+    {'className':'Graphics_Point',
+    'deletes':GraPtdels}
+  ]
+}",,,True,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Update Related Graphic Points,,CALCULATION,,Cable_GUID,True,False,False,True,"$feature.Length_Adjustment; $feature.Cable_ID
+
+var GraPts = FeatureSetByName($datastore,'Graphics_Point',['ObjectID','Related_GUID','Label1','Label2','Label3'],true)
+
+var SLGUID = $feature.SlackLoop_GUID
+Console(""Related_GUID = \'""+Text(SLGUID)+""\'"")
+var GraMatch = Filter(GraPts,""Related_GUID = \'""+Text(SLGUID)+""\'"")
+if (Count(GraMatch)==0) {return}
+
+var fields = ['Length_Adjustment','Cable_ID']
+
+var attupdates = {}
+var editCt = 0
+for (var f in fields) {
+  var field = Text(fields[f])
+  if (Text($feature[field])!=Text($originalfeature[field])) {
+    if (field=='Length_Adjustment') {attupdates['Label1']=$feature[field]}
+    if (field=='Cable_ID') {attupdates['Label2']=$feature[field]}
+    editCt++
+  }
+}
+if (editCt==0) {return}
+
+var GraPtupdates = []
+for (var Gra in GraMatch) {
+  var GraOID = Gra.ObjectID
+  var GraPtdata = {'ObjectID':GraOID,'attributes':attupdates}
+  Push(GraPtupdates,GraPtdata)
+}
+
+return {
+  'result':$feature.Cable_GUID,
+  'edit':[
+    {'className':'Graphics_Point',
+     'updates':GraPtupdates}
+  ]
+}",,,True,True,False,,,2147483647,"{""type"":""PropertySet"",""propertySetItems"":[]}"

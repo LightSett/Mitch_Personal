@@ -1,0 +1,234 @@
+﻿NAME,DESCRIPTION,TYPE,SUBTYPE,FIELD,ISEDITABLE,TRIGGERINSERT,TRIGGERDELETE,TRIGGERUPDATE,SCRIPTEXPRESSION,ERRORNUMBER,ERRORMESSAGE,EXCLUDECLIENTEVALUATION,ISENABLED,BATCH,SEVERITY,TAGS,CATEGORY,CHECKPARAMETERS
+Span UNID,Calculate Span UNID,CALCULATION,,UNID,True,True,False,True,"If (($feature.GlobalID != Null) && ($feature.SPAN_TYPE == ""Underground"")){
+Return ""SPAN:UG::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+else if (($feature.GlobalID != Null) && ($feature.SPAN_TYPE == ""Aerial"")){
+Return ""SPAN:AER::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+else if (($feature.GlobalID != Null) && ($feature.SPAN_TYPE == ""Building"")){
+Return ""SPAN:ISP::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Calculated_Length,Automatic geometry calculation for length,CALCULATION,,CALCULATED_LENGTH,True,True,False,True,"//Check for geometry change upon edit and only calculate length if geometry changes
+var oldGeo = geometry($originalFeature)
+var newGeo = geometry($feature)
+if (!Equals(newGeo, oldGeo)) {
+  var p0 = Geometry($feature)['paths'][0][0]
+  var pn = Geometry($feature)['paths'][-1][-1]
+  return iif($feature.SUBTYPE_CODE!=3,
+      LengthGeodetic($feature,'feet'),
+      DistanceGeodetic(p0,pn,'feet')
+  )
+}
+else {return $feature.CALCULATED_LENGTH}",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Formatted Length,Format calculated length to XXX',CALCULATION,,SPAN_LEN,True,True,False,True,"//Check for geometry change upon edit and only calculate length if geometry changes
+var oldGeo = geometry($originalFeature)
+var newGeo = geometry($feature)
+if (!Equals(newGeo, oldGeo)) {
+  var p0 = Geometry($feature)['paths'][0][0]
+  var pn = Geometry($feature)['paths'][-1][-1]
+  return iif($feature.SUBTYPE_CODE!=3,
+      Ceil(LengthGeodetic($feature,'feet')) + '\'',
+      Ceil(DistanceGeodetic(p0,pn,'feet')) + '\''
+  )
+}
+else {return Ceil($feature.CALCULATED_LENGTH) + '\''}",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+FOC List,,CALCULATION,,FOC_LIST,True,True,False,True,"Console('Span ID: ' + $feature.ObjectID)
+var fields = ['*'] //Transmedia fields needed for labelling
+var Transmedia = FeatureSetByName($datastore,'Transmedia',fields,true)
+var Cables = Dictionary()
+//Find Cables at Span line
+var intCables = OrderBy(Intersects(Transmedia,$feature), 'Network_Type ASC')
+Console('# Cables found at Span: ' + Count(intCables))
+For (var Cable in intCables) {
+    If (Contains(Cable,$feature)) {
+        Console('    Cable OID: ' + Cable.ObjectID)
+        var CableData = ''
+        if (Cable.Transmedia_Type == 'Terminal Tail') {
+            CableData += 'Tail,' + Cable.Total_Fibers + ',' + Cable.Cable_ID + ',' + Cable.Fiber_Count + ',' + Cable.Adjusted_Length
+        }
+        else if (Cable.Transmedia_Type != 'Terminal Tail') {
+            CableData += Cable.Network_Type + ',' + Cable.Total_Fibers + ',' + Cable.Cable_ID + ',' + Cable.Fiber_Count + ',' + Cable.Adjusted_Length
+        }
+        Cables[Text(Cable.Cable_GUID)] = CableData
+        Console('    -------')
+    }
+}
+Console('    Cable List: ' + Cables)
+Console('<------Next Span------->')
+return Text(Cables)",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+FOC Count,,CALCULATION,,FOC_COUNT,True,True,False,True,"Console('Span ID: ' + $feature.ObjectID)
+var fields = ['*'] //Transmedia fields needed for labelling
+var Transmedia = FeatureSetByName($datastore,'Transmedia',fields,true)
+var Cables = []
+var intCables = Intersects(Transmedia,$feature)
+Console('# Cables found at Span: ' + Count(intCables))
+var Counts = Dictionary('Total',0,'Feeder',0,'Distribution',0,'Tails',0,'Drop',0)
+For (var Cable in intCables) {
+    If (Contains(Cable,$feature)) {
+        If (HasKey(Counts, Cable.Network_Type)) {
+            Console(Counts[Cable.Network_Type])
+            If (Cable.Transmedia_Type == 'Terminal Tail') {
+                Counts['Tails'] += 1
+            }
+            else if (Cable.Transmedia_Type != 'Terminal Tail') {
+                Counts[Cable.Network_Type] += 1
+            }
+            Counts.Total += 1
+            Console('    Cable OID: ' + Cable.ObjectID)
+            Console('    ' + Counts)
+            Console('    -------')
+        }
+    }
+}
+Console('\nCable Counts at Span: ' + Counts)
+Console('<------------------------Next Span------------------------>\n')
+return Text(Counts)",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Duct List,,CALCULATION,,DUCT_LIST,True,True,False,True,"Console('Span ID: ' + $feature.ObjectID)
+var fields = ['ObjectID','CON_ID','CON_GUID','Duct_Size','Duct_Schedule','CON_Length','Duct_Content_Type','Duct_Content'] //Conduit fields needed for labelling
+var Conduit = FeatureSetByName($datastore,'Conduit',fields,true)
+var Conduits = Dictionary()
+//Find Conduits at Span line
+var intConduits = OrderBy(Intersects(Conduit,$feature), 'Duct_Size DESC')
+Console('# Conduits found at Span: ' + Count(intConduits))
+For (var Conduit in intConduits) {
+    If (Contains(Conduit,$feature)) {
+        Console('    Conduit OID: ' + Conduit.ObjectID)
+        var ConduitData = Conduit.CON_ID + ',' + Split(Conduit.Duct_Size,'""')[0] + ',' + Conduit.Duct_Schedule + ',' + Split(Conduit.CON_Length,'\'')[0] + ',' + Conduit.Duct_Content_Type + ',' + Replace(Replace(Conduit.Duct_Content,'\""',''),',',';')
+        Conduits[Text(Conduit.CON_GUID)] = ConduitData
+        Console('    -------')
+    }
+}
+Console('    Conduit List: ' + Conduits)
+Console('<------Next Span------->')
+return Text(Conduits)",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Duct Count,,CALCULATION,,DUCT_COUNT,True,True,False,True,"Console('Span ID: ' + $feature.ObjectID)
+var fields = ['ObjectID'] //Conduit fields needed for labelling
+var Conduit = FeatureSetByName($datastore,'Conduit',fields,true)
+var CONCount = 0
+//Find Cables at Span line
+var intConduits = Intersects(Conduit,$feature)
+if (Count(intConduits) == 0) {return CONCount}
+for (var Conduit in intConduits) {
+    If (Contains(Conduit,$feature)) {
+        CONCount += 1
+        Console(CONCount)
+    }
+}
+Console('# Conduits found at Span: ' + CONCount)
+Console('<------Next Span------->')
+return CONCount",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Span ID,,CALCULATION,,SPAN_ID,True,True,False,False,"var Spans = GetFeatureSet($feature)
+Console(Count(Spans))
+var SpanList = []
+var ExistID = []
+for (var Span in Spans) {
+    SpanList[Count(SpanList)] = Span.ObjectID
+    ExistID[Count(ExistID)] = Span.SPAN_ID
+}
+Console(Sort(ExistID))
+var Position = IndexOf(SpanList,$feature.ObjectID)
+Console(Text(Position + 1,'000'))
+var ID = Text(Position + 1,'000')
+return ID",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+From Span,,CALCULATION,,From_Span,True,True,False,True,"Console($feature.ObjectID)
+var Spans = FeatureSetByName($datastore,'Span',[""ObjectID"",""SPAN_ID"",'GlobalID'],true)
+var Froms = Intersects(Geometry($feature)['paths'][0][0], Spans)
+var IDs = []
+for (var F in Froms) {
+    if (F.ObjectID==$feature.ObjectID) {continue}
+    Push(IDs,Text(F.ObjectID))
+}
+Console(IDs)
+return IDs",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+To Span,,CALCULATION,,To_Span,True,True,False,True,"Console($feature.ObjectID)
+var Spans = FeatureSetByName($datastore,'Span',[""ObjectID"",""SPAN_ID"",'GlobalID'],true)
+var Tos = Intersects(Geometry($feature)['paths'][-1][-1], Spans)
+Console(Count(Tos))
+var IDs = []
+for (var T in Tos) {
+    if (T.ObjectID==$feature.ObjectID) {continue}
+    Push(IDs,Text(T.ObjectID))
+}
+Console(IDs)
+return IDs",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+From Structure,,CALCULATION,,From_Structure,True,True,False,True,"var STRs = FeatureSetByName($datastore,""UG_Structure"",['ObjectID',""STR_ID"",'SUBTYPE_CODE','GlobalID','Pole_GUID'],true)
+var Froms = Intersects((Geometry($feature)['paths'][0][0]), STRs)
+var IDs = []
+for (var F in Froms) {
+    Push(IDs,Text(F.ObjectID))
+}
+Console(IDs)
+return IDs",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+To Structure,,CALCULATION,,To_Structure,True,True,False,True,"var STRs = FeatureSetByName($datastore,""UG_Structure"",['ObjectID',""STR_ID"",'SUBTYPE_CODE','GlobalID','Pole_GUID'],true)
+var Tos = Intersects((Geometry($feature)['paths'][-1][-1]), STRs)
+var IDs = []
+for (var T in Tos) {
+    Push(IDs,Text(T.ObjectID))
+}
+Console(IDs)
+return IDs",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+From Equipment,,CALCULATION,,From_Equipment,True,True,False,True,"var sql = ""EQUIPMENT_TYPE <> 'Splitter'""
+var EQs = Filter(FeatureSetByName($datastore,""Equipment"",[""EQUIP_ID"",'GlobalID'],true),sql)
+var Froms = Intersects((Geometry($feature)['paths'][0][0]), EQs)
+var IDs = []
+for (var F in Froms) {
+    Push(IDs,Text(F.ObjectID))
+}
+Console(IDs)
+return IDs",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+To Equipment,,CALCULATION,,To_Equipment,True,True,False,True,"var sql = ""EQUIPMENT_TYPE <> 'Splitter'""
+var EQs = Filter(FeatureSetByName($datastore,""Equipment"",[""EQUIP_ID"",'GlobalID'],true),sql)
+var Tos = Intersects((Geometry($feature)['paths'][-1][-1]), EQs)
+var IDs = []
+for (var T in Tos) {
+    Push(IDs,Text(T.ObjectID))
+}
+Console(IDs)
+return IDs",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+From Splice Closure,,CALCULATION,,From_Splice_Closure,True,True,False,True,"var Splices = FeatureSetByName($datastore,""Splice_Closure"",['ObjectID',""SPLCL_ID"",'GlobalID'],true)
+var Froms = Intersects((Geometry($feature)['paths'][0][0]), Splices)
+var IDs = []
+for (var F in Froms) {
+    Push(IDs,Text(F.ObjectID))
+}
+Console(IDs)
+return IDs",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+To Splice Closure,,CALCULATION,,To_Splice_Closure,True,True,False,True,"var Splices = FeatureSetByName($datastore,""Splice_Closure"",['ObjectID',""SPLCL_ID"",'GlobalID'],true)
+var Tos = Intersects((Geometry($feature)['paths'][-1][-1]), Splices)
+var IDs = []
+for (var T in Tos) {
+    Push(IDs,Text(T.ObjectID))
+}
+Console(IDs)
+return IDs",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Structure Count,,CALCULATION,,Structure_Count,True,True,False,True,"var STRs = Intersects($feature,FeatureSetByName($datastore,'UG_Structure',[''],true))
+Console(Count(STRs))
+return Count(STRs)",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Work Order ID,,CALCULATION,,WORK_ORDER_ID,True,True,False,True,"var FDAs = Intersects($feature,FeatureSetByName($datastore,'FDA',[""WORK_ORDER_ID""],true))
+var FDA = First(FDAs)
+if (Count(FDAs) > 1) {
+    FDA = First(Intersects(Geometry($feature)['paths'][-1][-1],FeatureSetByName($datastore,'FDA',[""WORK_ORDER_ID""],true)))
+}
+
+iif(IsEmpty(FDA),null,FDA.WORK_ORDER_ID)",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Strand List,,CALCULATION,,STRAND_LIST,True,True,False,True,"if ($feature.SUBTYPE_CODE!=3) {return null}
+Console('Span ID: ' + $feature.ObjectID)
+var fields = ['ObjectID','Strand_GUID','STRAND_ID','STRAND_SIZE','STRAND_TYPE','PLACEMENT_TYPE','STRAND_LEN','STRAND_CONTENT_TYPE','STRAND_CONTENT'] //Strand fields needed for labelling
+var Strands = FeatureSetByName($datastore,'Strand',fields,true)
+var StrandDict = Dictionary()
+//Find Strand at Span line
+var intStrands = Intersects(Strands,$feature)
+Console('# Strands found at Span: ' + Count(intStrands))
+For (var S in intStrands) {
+  var SData = null
+  If (Contains(S,$feature)) {
+    Console('    Strand OID: ' + S.ObjectID)
+    Console('    Strand GUID: ' + S.Strand_GUID)
+    SData += S.STRAND_ID + ',' + S.STRAND_SIZE + ',' + S.STRAND_TYPE + ',' + iif(S.PLACEMENT_TYPE=='Overlash','EXISTING','NEW') + ',' + Split(S.STRAND_LEN,'\'')[0] + ',' + S.STRAND_CONTENT_TYPE + ',' + Replace(Replace(S.STRAND_CONTENT,'\""',''),',',';')
+    StrandDict[Text(S.Strand_GUID)] = SData
+    Console('    -------')
+  }
+}
+Console('    Strand List: ' + StrandDict)
+Console('<------Next Span------->')
+return Text(StrandDict)",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"

@@ -1,0 +1,146 @@
+﻿NAME,DESCRIPTION,TYPE,SUBTYPE,FIELD,ISEDITABLE,TRIGGERINSERT,TRIGGERDELETE,TRIGGERUPDATE,SCRIPTEXPRESSION,ERRORNUMBER,ERRORMESSAGE,EXCLUDECLIENTEVALUATION,ISENABLED,BATCH,SEVERITY,TAGS,CATEGORY,CHECKPARAMETERS
+Transmedia_UNID,Calculate UNID of Transmedia,CALCULATION,,UNID,True,True,False,True,"If (( $feature.ENVIRONMENT == ""Aerial"") && ($feature.TRANSMEDIA_TYPE == ""Fiber Optic Cable"")){
+Return ""FOC:AER::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+else if (($feature.ENVIRONMENT == ""Underground"")&& ($feature.TRANSMEDIA_TYPE == ""Fiber Optic Cable"")){
+Return ""FOC:UG::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+else if (($feature.ENVIRONMENT == ""Aerial"")&& ($feature.TRANSMEDIA_TYPE == ""Terminal Tail"")){
+Return ""TAIL:AER::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+else if (($feature.ENVIRONMENT == ""Underground"")&& ($feature.TRANSMEDIA_TYPE == ""Terminal Tail"")){
+Return ""TAIL:UG::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+else if (($feature.ENVIRONMENT == ""Aerial"")&& ($feature.TRANSMEDIA_TYPE == ""Drop"")){
+Return ""DROP:AER::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}
+else if (($feature.ENVIRONMENT == ""Underground"")&& ($feature.TRANSMEDIA_TYPE == ""Drop"")){
+Return ""DROP:UG::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}",,,False,True,False,,,2147483647,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Spare Fibers,Spare Fibers,CALCULATION,,SPARE_FIBER,True,True,False,True,"Var x = $feature.TOTAL_FIBERS
+Var y = $feature.ACTIVE_FIBERS;
+x-y",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+From_SC,From Splice Closure,CALCULATION,,FROM_SPLICE_CLOSURE_UNID,True,True,False,True,"var searchDist = 10;
+var SC = FeatureSetByName($datastore,""Splice_Closure"",[""UNID""],true)
+var fromSC = contains(BufferGeodetic((Geometry($feature)['paths'][0][0]), searchDist, ""feet""), SC)
+var matchedSC = First(fromSC)
+return iif(IsEmpty(matchedSC), null, matchedSC.UNID)",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+To_SC,To Splice Closure,CALCULATION,,TO_SPLICE_CLOSURE_UNID,True,True,False,True,"var searchDist = 10;
+var SC = FeatureSetByName($datastore,""Splice_Closure"",[""UNID""],true)
+var toSC = contains(BufferGeodetic((Geometry($feature)['paths'][-1][-1]), searchDist, ""feet""), SC)
+var matchedSC = First(toSC)
+return iif(IsEmpty(matchedSC), null, matchedSC.UNID)",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+From_EQ,From Equipment,CALCULATION,,FROM_EQUIPMENT_UNID,True,True,False,True,"var searchDist = 10;
+var EQ = FeatureSetByName($datastore,""Equipment"",[""EQUIP_ID""],true)
+var fromEQ = contains(BufferGeodetic((Geometry($feature)['paths'][0][0]), searchDist, ""feet""), EQ)
+var matchedEQ = First(fromEQ)
+return iif(IsEmpty(matchedEQ), null, matchedEQ.EQUIP_ID)",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+To_EQ,To Equipment,CALCULATION,,TO_EQUIPMENT_UNID,True,True,False,True,"var searchDist = 10;
+var EQ = FeatureSetByName($datastore,""Equipment"",[""EQUIP_ID""],true)
+var toEQ = contains(BufferGeodetic((Geometry($feature)['paths'][-1][-1]), searchDist, ""feet""), EQ)
+var matchedEQ = First(toEQ)
+return iif(IsEmpty(matchedEQ), null, matchedEQ.EQUIP_ID)",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+From_Structure,From Structure,CALCULATION,,FROM_STRUCTURE_UNID,True,True,False,True,"Console($feature.ObjectID)
+var Spans = FeatureSetByName($datastore,'Span',[""ObjectID"",""SPAN_ID""],true)
+var STRs = FeatureSetByName($datastore,'UG_Structure',[""ObjectID"",""STR_ID""],true)
+var fromSTRs = Intersects(Geometry($feature)['paths'][0][0], STRs)
+Console(Count(fromSTRs))
+var STRIDs = []
+for (var STR in fromSTRs) {
+    Push(STRIDs,STR.STR_ID)
+}
+Console(STRIDs)
+return iif(IsEmpty(STRIDs), null, STRIDs)",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+To_Structure,To Structure,CALCULATION,,TO_STRUCTURE_UNID,True,True,False,True,"Console($feature.ObjectID)
+var Spans = FeatureSetByName($datastore,'Span',[""ObjectID"",""SPAN_ID""],true)
+var STRs = FeatureSetByName($datastore,'UG_Structure',[""ObjectID"",""STR_ID""],true)
+var fromSTRs = Intersects(Geometry($feature)['paths'][-1][-1], STRs)
+Console(Count(fromSTRs))
+var STRIDs = []
+for (var STR in fromSTRs) {
+    Push(STRIDs,STR.STR_ID)
+}
+Console(STRIDs)
+return iif(IsEmpty(STRIDs), null, STRIDs)",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Calculated_Length,Automatic geometry calculation for length,CALCULATION,,CALCULATED_LENGTH,False,True,False,True,"//Check for geometry change upon edit and only calculate length if geometry changes
+var oldGeo = geometry($originalFeature)
+var newGeo = geometry($feature)
+iif(Equals(newGeo, oldGeo), $feature.CALCULATED_LENGTH, LengthGeodetic($feature, 'feet'))",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Drop Cable Name,<Address>,CALCULATION,Drop Cable,CABLE_NAME,True,True,False,True,"//Drop Cable Name
+var DP = FeatureSetByName($datastore,""Demand_Point"",[""Address""],true)
+
+var toDP = contains(BufferGeodetic(Geometry($feature)['paths'][-1][-1],1,""feet""), DP)
+
+var matchedDP = First(toDP)
+
+return iif(IsEmpty(matchedDP), null, matchedDP.Address)",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Drop to FDH,Path distance back to FDH from drop HH,CALCULATION,Drop Cable,DROP_FDH,True,True,False,True,"//DROP_FDH distance
+var Span = FeatureSetByName($datastore,""Span"",[""CALCULATED_LENGTH""],true)
+
+var DropBuff = BufferGeodetic($feature, 1, 'feet')
+
+var Spans = contains(DropBuff, Span)
+
+var SpanLens = []
+for (var i in Spans) {
+    var Len = i.CALCULATED_LENGTH
+    SpanLens[Count(SpanLens)] = Len
+    }
+
+return Round(sum(SpanLens),0) + '\''",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Drop to NID,"Straight line distance from drop HH plus 15%, then an additional 50' slack at NID location",CALCULATION,Drop Cable,DROP_NID,True,True,False,True,"//DROP_NID distance
+var Span = FeatureSetByName($datastore,""Span"",[""CALCULATED_LENGTH""],true)
+
+var DropBuff = BufferGeodetic($feature, 1, 'feet')
+
+var Spans = contains(DropBuff, Span)
+
+var SpanLens = []
+for (var i in Spans) {
+    var Len = i.CALCULATED_LENGTH
+    SpanLens[Count(SpanLens)] = Len
+    }
+
+return Round((($feature.CALCULATED_LENGTH - sum(SpanLens))*1.15)+50,0) + '\''",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Drop Access,Coordinates of SCAB location,CALCULATION,Drop Cable,DROP_ACC,True,True,False,True,"var geom = Geometry($feature).paths
+var countvert = count(geom[0])
+var NTL = (countvert - 2)
+console(countvert)
+console(NTL)
+console('-----------------------------------------------------------')
+//ref = ""spatialReference"": { ""wkid"": 4326 }
+var x = Round(geom[0][NTL][""x""],6)
+var y = Round(geom[0][NTL][""y""],6)
+var xy = Text(x) + ',' + Text(y)
+return xy",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Work Order ID,,CALCULATION,,WORK_ORDER_ID,True,True,False,True,"var FDAs = Intersects($feature,FeatureSetByName($datastore,'FDA',[""WORK_ORDER_ID""],true))
+var FDA = First(FDAs)
+if (Count(FDAs) > 1) {
+    FDA = First(Intersects(Geometry($feature)['paths'][-1][-1],FeatureSetByName($datastore,'FDA',[""WORK_ORDER_ID""],true)))
+}
+
+iif(IsEmpty(FDA),null,FDA.WORK_ORDER_ID)",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Asbuilt FTG,,CALCULATION,,MEASURED_LENGTH,True,True,False,True,"var Spans = FeatureSetByName($datastore,'Span',['ObjectID','MEASURED_LENGTH'],true)
+var UGSTRs = FeatureSetByName($datastore,'UG_Structure',['ObjectID'],true)
+
+var Geom = Geometry($feature)
+var Pts = Geom['paths'][0]
+
+var Ss = Contains(Geom,Spans)
+var ftg = 0
+for (var S in Ss) {
+  ftg += S.MEASURED_LENGTH
+}
+if ($feature.TRANSMEDIA_TYPE=='Drop') {
+  var cumlen = 0
+  var PtsRev = Reverse(Pts)
+  for (var i=0; i<Count(Pts)-1; i++) {
+    var P0 = PtsRev[i]; var P1 = PtsRev[i+1]
+    var Len = DistanceGeodetic(P0,P1,'feet')
+    if (Count(Intersects(P0,UGSTRs))>0) {break}
+    cumlen += Len
+  }
+  ftg += Ceil(cumlen)
+}
+
+return ftg",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"

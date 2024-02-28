@@ -1,0 +1,17 @@
+﻿NAME,DESCRIPTION,TYPE,SUBTYPE,FIELD,ISEDITABLE,TRIGGERINSERT,TRIGGERDELETE,TRIGGERUPDATE,SCRIPTEXPRESSION,ERRORNUMBER,ERRORMESSAGE,EXCLUDECLIENTEVALUATION,ISENABLED,BATCH,SEVERITY,TAGS,CATEGORY,CHECKPARAMETERS
+PFP Location,,CALCULATION,,FDA_Location,True,True,False,True,"var PFP = First(Filter(FeatureSetByName($datastore,'Equipment',['Relative_Location','PLACED_ADDRESS'],true),""SUBTYPE_CODE = 9""))
+if (PFP==null) {return}
+var RLoc = iif(PFP.Relative_Location=='OPP','O',PFP.Relative_Location)
+var PAdd = PFP.PLACED_ADDRESS; var PAdds = Split(PAdd,' ')
+var AddNum = PAdds[0]
+var St = iif(Includes(['NW','N','NE','E','SW','S','SE','W'],iif(Count(PAdds)<2,'TBD',PAdds[1])),
+             iif(Count(PAdds)<3,'TBD',Left(PAdds[2],1)),
+             iif(Count(PAdds)<2,'TBD',Left(PAdds[1],1)))
+var PFPLoc = /*RLoc+*/AddNum+St
+return PFPLoc",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+PFP Location Full,,CALCULATION,,OLT_Location,True,True,False,True,"var PFP = First(Filter(FeatureSetByName($datastore,'Equipment',['Relative_Location','PLACED_ADDRESS'],true),""SUBTYPE_CODE = 9""))
+if (PFP==null) {return}
+var RLoc = DomainCode(PFP, 'Relative_Location',PFP.Relative_Location)
+var PAdd = PFP.PLACED_ADDRESS
+var PFPLoc = RLoc+' '+PAdd
+return PFPLoc",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"

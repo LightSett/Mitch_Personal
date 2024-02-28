@@ -1,0 +1,3538 @@
+﻿NAME,DESCRIPTION,TYPE,SUBTYPE,FIELD,ISEDITABLE,TRIGGERINSERT,TRIGGERDELETE,TRIGGERUPDATE,SCRIPTEXPRESSION,ERRORNUMBER,ERRORMESSAGE,EXCLUDECLIENTEVALUATION,ISENABLED,BATCH,SEVERITY,TAGS,CATEGORY,CHECKPARAMETERS
+General Tools 1,Attribute Rule Triggers,CALCULATION,,General_Tools_Rules_1,True,False,False,True,"var BOM = FeatureSetByName($datastore,'BOM',['ObjectID'],false)
+var Conduit = FeatureSetByName($datastore,'Conduit',['ObjectID'],false)
+var Equipment = FeatureSetByName($datastore,'Equipment',['ObjectID'],false)
+var FDA = FeatureSetByName($datastore,'FDA',['ObjectID'],false)
+var Frames_PlanView = FeatureSetByName($datastore,'Frames_PlanView',['ObjectID'],false)
+var Frames_Schematic = FeatureSetByName($datastore,'Frames_Schematic',['ObjectID'],false)
+var Pole = FeatureSetByName($datastore,'Pole',['ObjectID'],false)
+var Pole_Proposals = FeatureSetByName($datastore,'Pole_Proposals',['ObjectID'],false)
+var Rev_Cloud = FeatureSetByName($datastore,'Rev_Cloud',['ObjectID'],false)
+var Serving_Area = FeatureSetByName($datastore,'Serving_Area',['ObjectID'],false)
+var Slack_Loop = FeatureSetByName($datastore,'Slack_Loop',['ObjectID'],false)
+var Span = FeatureSetByName($datastore,'Span',['ObjectID'],false)
+var Splice_Closure = FeatureSetByName($datastore,'Splice_Closure',['ObjectID'],false)
+var Strand = FeatureSetByName($datastore,'Strand',['ObjectID'],false)
+var Transmedia = FeatureSetByName($datastore,'Transmedia',['ObjectID'],false)
+var UG_Structure = FeatureSetByName($datastore,'UG_Structure',['ObjectID'],false)
+//TRIGGER RULES
+if (Find('RT_',$feature.General_Tools)>=0) {
+  var FS = Split($feature.General_Tools,'RT_')[1]
+  var FSs = {'BOM':BOM,'Conduit':Conduit,'Equipment':Equipment,'FDA':FDA,'Frames_PlanView':Frames_PlanView,'Frames_Schematic':Frames_Schematic,
+             'Pole':Pole,'Pole_Proposals':Pole_Proposals,'Rev_Cloud':Rev_Cloud,'Serving_Area':Serving_Area,'Slack_Loop':Slack_Loop,
+             'Span':Span,'Splice_Closure':Splice_Closure,'Strand':Strand,'Transmedia':Transmedia,'UG_Structure':UG_Structure}
+  var Updates = []
+  if (FS!='All') {for (var F in FSs[Text(FS)]) {
+    Push(Updates,{'ObjectID':F.ObjectID})
+  }}
+  var Edits = [{'className':FS,'updates':Updates}]
+  if (FS=='All') {
+    var Edits = []
+    for (var k in FSs) {
+      Push(Edits,{'className':k,'updates':[]})
+      for (var F in FSs[Text(k)]) {
+        Push(Edits[-1]['updates'],{'ObjectID':F.ObjectID})
+      }
+    }
+  }
+  return {
+    'result':Text(FS + ' features updated.'),
+    'edit':Edits
+  }
+}",,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+General Tools 2,Generate Offset Helpers; Convert Sym to Geo,CALCULATION,,General_Tools_Rules_2,True,False,False,True,"var Helpers = FeatureSetByName($datastore,'OffsetHelper',['ObjectID','Related_OID','Related_GUID','Related_ID','Segment_Part','Offset_Side','Offset_Distance','Offset_Increment','Offset_Type'],true)
+var Cables = FeatureSetByName($datastore,'Transmedia',['ObjectID','Cable_ID','Cable_GUID','Network_Type','Adjusted_Length','Offset_Side','Offset_Distance','Offset_Increment'],true)
+var CONs = FeatureSetByName($datastore,'Conduit',['ObjectID','CON_ID','CON_GUID','Offset_Side','Offset_Distance','Offset_Increment'],true)
+var Spans = FeatureSetByName($datastore,'Span',['ObjectID'],true)
+
+function isnull(val) {val==null}
+
+//GENERATE OFFSET HELPERS
+if ($feature.General_Tools=='Offset_Helpers') {
+  var EHelpers = {}
+  for (var H in Helpers) {
+    EHelpers[Text(H.ObjectID)] = [H.Related_GUID,Round(H.Offset_Increment,2)]
+  }
+
+  var Helperadds = []
+  for (var C in Cables) {
+    if (C.Network_Type=='Drop') {continue}
+    if (C.Network_Type=='Distribution - Tail') {if (Includes([10,25],C.Adjusted_Length)) {continue}}
+    var COID = C.ObjectID; var CGUID = C.Cable_GUID; var CID = C.Cable_ID
+    var OS = C.Offset_Side; var OD = C.Offset_Distance; var OI = C.Offset_Increment
+
+    var Map_Use = ['SCH','CD','DT']
+    var OIs = {'SCH':30,'CD':4,'DT':0.4}
+    for (var M in Map_Use) {
+      var MU = Map_Use[M]
+      var Esql = ""Related_GUID = \'""+Text(CGUID)+""\' AND Offset_Type = @MU""
+      var EHelpers = Filter(Helpers,Esql)
+      if (Count(EHelpers)>0) {continue}
+      var Helpdata = {'attributes':{'Feature_Type':'Transmedia','Related_OID':COID,'Related_GUID':CGUID,'Related_ID':CID,'Offset_Segment':1,'Offset_Side':OS,'Offset_Distance':OD,'Offset_Increment':OIs[Text(MU)]},'geometry':Geometry(C)}
+      Helpdata['attributes']['Offset_Type'] = MU
+      Push(Helperadds,Helpdata)
+    }
+/*
+    var dupe = 'N'
+    for (var E in EHelpers) {if (EHelpers[E][0]==CGUID && EHelpers[E][1]==Round(OI,2)) {dupe='Y';break}}
+    if (dupe=='Y') {continue}
+
+    var Helpdata = {'attributes':{'Feature_Type':'Transmedia','Related_OID':COID,'Related_GUID':CGUID,'Related_ID':CID,'Offset_Segment':1,'Offset_Side':OS,'Offset_Distance':OD,'Offset_Increment':OI},'geometry':Geometry(C)}
+    Push(Helperadds,Helpdata)
+*/
+  }
+  for (var C in CONs) {
+    var COID = C.ObjectID; var CGUID = C.CON_GUID; var CID = C.CON_ID
+    var OS = C.Offset_Side; var OD = C.Offset_Distance; var OI = C.Offset_Increment
+
+    var Map_Use = ['SCH','CD','DT']
+    var OIs = {'SCH':30,'CD':4,'DT':0.4}
+    for (var M in Map_Use) {
+      var MU = Map_Use[M]
+      if (MU=='SCH') {continue}
+      var Esql = ""Related_GUID = \'""+Text(CGUID)+""\' AND Offset_Type = @MU""
+      var EHelpers = Filter(Helpers,Esql)
+      if (Count(EHelpers)>0) {continue}
+      var Helpdata = {'attributes':{'Feature_Type':'Conduit','Related_OID':COID,'Related_GUID':CGUID,'Related_ID':CID,'Offset_Segment':1,'Offset_Side':OS,'Offset_Distance':OD,'Offset_Increment':OIs[Text(MU)]},'geometry':Geometry(C)}
+      Helpdata['attributes']['Offset_Type'] = MU
+      Push(Helperadds,Helpdata)
+    }
+/*
+    var dupe = 'N'
+    for (var E in EHelpers) {if (EHelpers[E][0]==CGUID && EHelpers[E][1]==Round(OI,2)) {dupe='Y';break}}
+    if (dupe=='Y') {continue}
+
+    var Helpdata = {'attributes':{'Feature_Type':'Conduit','Related_OID':COID,'Related_GUID':CGUID,'Related_ID':CID,'Offset_Segment':1,'Offset_Side':OS,'Offset_Distance':OD,'Offset_Increment':OI},'geometry':Geometry(C)}
+    Push(Helperadds,Helpdata)
+*/
+  }
+
+  Console('\nHelperadds: [' + Count(Helperadds) + ']')
+  for (var key in Helperadds) {Console(key + ':' + Helperadds[key]['attributes'] + '\n')}
+
+  return {
+    'result':$feature.General_Tools_Rules_2,
+    'edit':[
+      {'className':'OffsetHelper', 
+      'adds':Helperadds}      
+    ]
+  }
+}
+
+//CONVERT SYMBOLOGY TO GEOMETRY
+if ($feature.General_Tools=='Sym_Geo') {
+  var Helperupdates = []
+  for (var H in Helpers) {
+    var HOID = H.ObjectID; var ROID = H.Related_OID; var RGUID = H.Related_GUID; var RID = H.Related_ID
+
+    //Skip if already converted
+    var intSpans = Contains(H,Spans)
+    if (Count(intSpans)==0) {continue}
+    Console('not skipped')
+    //Geodesic measurement and converting to Planar measurement.
+    var pie = 3.141592653589793
+    var originShift = 2.0*pie*6378137.0/2.0
+    var ConvRatio = 180/originShift
+//    var OffInc = C.Offset_Increment
+//    var OffsetIncrement = ConvRatio*OffInc
+//    var CircleSides = 5*OffInc
+//    var OffsetStaggerRadius = Sqrt(Pow(CircleSides,2) + Pow(CircleSides,2))
+//    var DensifyDist = {'1':Sqrt(Pow(OffsetStaggerRadius,2) - Pow(1*OffInc,2))-10,'2':Sqrt(Pow(OffsetStaggerRadius,2) - Pow(2*OffInc,2))-8,'3':Sqrt(Pow(OffsetStaggerRadius,2) - Pow(3*OffInc,2))-6,
+//                       '4':Sqrt(Pow(OffsetStaggerRadius,2) - Pow(4*OffInc,2))-5,'5':Sqrt(Pow(OffsetStaggerRadius,2) - Pow(5*OffInc,2))-4,'6':Sqrt(Pow(OffsetStaggerRadius,2) - Pow(6*OffInc,2))-3,
+//                       '7':Sqrt(Pow(OffsetStaggerRadius,2) - Pow(7*OffInc,2))-2,'8':Sqrt(Pow(OffsetStaggerRadius,2) - Pow(8*OffInc,2))-1,'9':Sqrt(Pow(OffsetStaggerRadius,2) - Pow(9*OffInc,2)),
+//                       '0':Sqrt(Pow(OffsetStaggerRadius,2) - Pow(0*OffInc,2))}
+    
+    var OS = H.Offset_Side
+    var OI = Number(H.Offset_Increment)
+    var OD = iif(OI>5,Number(H.Offset_Distance)-1,Number(H.Offset_Distance))
+    var Seg = H.Segment_Part
+    var angs = {'0':0,'1':15,'2':22.5,'3':30,'4':37.5,'5':45,'6':52.5,'7':60,'8':67.5,'9':75}
+
+    if (Any([OS,OD,OI,Seg],isnull)) {Console('Offset Helper '+HOID+' is missing Offset info.')
+                                     return {'errorMessage':'Offset Helper '+HOID+' is missing Offset info.'}}
+
+    var X = OD*OI                      //OffsetDistance
+    var angdeg = angs[Text(OD)]
+    var angrad = angdeg*(pie/180)
+    var R = X/sin(angrad)
+    var Y = X/tan(angrad)              //DensifyDistance
+    Console('HOID: ' + HOID + ' / Seg: ' + Seg)
+    Console('OS: ' + OS)
+    Console('OD: ' + OD)
+    Console('OI: ' + OI)
+    Console('angdeg: ' + angdeg)
+    Console('Y: ' + Y)
+    Console('X: ' + iif(OS=='R',X,-X))
+
+    var OffData = {'ObjectID':HOID,'geometry':{'hasZ':true,'hasM':true,'paths':[],'spatialReference':{'wkid':4326}}}
+
+    var EndPoints = []
+    var Geom = Geometry(H)['paths']
+    var StartpntX = Geom[0][0]['x']
+    var StartpntY = Geom[0][0]['y']
+    var EndpntX = Geom[-1][-1]['x']
+    var EndpntY = Geom[-1][-1]['y']
+    Push(EndPoints,[StartpntX,StartpntY,0,null])
+    Push(EndPoints,[EndpntX,EndpntY,0,null])
+
+    var Off = Offset(H,iif(OS=='R',X,-X)*ConvRatio,'feet','square')
+    if (Off==null) {Off = Offset(H,iif(OS=='R',X,-X)*ConvRatio,'feet','round')}
+    var OffGeom = Off['paths'][0]
+    var OffPath = []
+    for (var pnt in OffGeom) {
+      var pntX = OffGeom[pnt]['x']
+      var pntY = OffGeom[pnt]['y']
+      Push(OffPath,[pntX,pntY,0,null])
+    }
+    var OffDens = DensifyGeodetic(Off,iif(IsNaN(Y),1,Y),'feet')
+    var OffDensGeom = OffDens['paths'][0]
+    var OffDensPath = []
+    for (var pnt in OffDensGeom) {
+      var pntX = OffDensGeom[pnt]['x']
+      var pntY = OffDensGeom[pnt]['y']
+      Push(OffDensPath,[pntX,pntY,0,null])
+    }
+    //Create adjusted paths.
+    var OffAdjPath = OffPath
+    //Start bevel
+    if (Includes(['Start','Both'],Seg)) {
+      Insert(OffAdjPath,1,OffDensPath[1])
+      Insert(OffAdjPath,1,EndPoints[0])
+      Erase(OffAdjPath,0)
+    }
+    //End bevel
+    if (Includes(['End','Both'],Seg)) {
+      Insert(OffAdjPath,-1,OffDensPath[-2])
+      Insert(OffAdjPath,-1,EndPoints[1])
+      Erase(OffAdjPath,-1)
+    }
+    var index = 0
+    for (var pnt in OffAdjPath) {
+      if (index < Count(OffAdjPath)-1) {
+        if (Text(OffAdjPath[index]) == Text(OffAdjPath[index+1])) {
+          Erase(OffAdjPath,index+1)
+        }
+        else {index += 1}
+      }
+    }
+    Push(OffData['geometry']['paths'],OffAdjPath)
+    OffData['geometry'] = Polyline(OffData['geometry'])
+    Push(Helperupdates,OffData)
+    Console('\nNEXT OFFSET\n')
+  }
+
+  Console('\nHelperupdates: [' + Count(Helperupdates) + ']')
+  for (var key in Helperupdates) {Console(key + ':' + Helperupdates[key] + '\n')}
+
+  return {
+    'result':$feature.General_Tools_Rules_2,
+    'edit':[
+      {'className':'OffsetHelper', 
+      'updates':Helperupdates}      
+    ]
+  }
+}",,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+General Tools 3,Create Labor Unit Bubbles,CALCULATION,,General_Tools_Rules_3,True,False,False,True,"var Frames = OrderBy(FeatureSetByName($datastore,'Frames_PlanView',['ObjectID','PageNumber','PageFinal','LaborUnits'],true),""PageNumber ASC"")
+var Cables = FeatureSetByName($datastore,'Transmedia',['ObjectID','Cable_ID','GlobalID','Comments','Status','Environment','Cable_Series','Cable_Type','Total_Fibers','Active_Fibers','Active_Starts','Active_Ends','Alignments',
+                                                       'To_Equipment','PON_Count','Fiber_Count','SUBTYPE_CODE','Network_Type','Transmedia_Type','Calculated_Length','Adjusted_Length','Cable_GUID'],true)
+var Dists = Filter(Cables,""Network_Type = 'Distribution' AND SUBTYPE_CODE <> 10"")
+var nonDrops = Filter(Cables,""SUBTYPE_CODE <> 12"")
+var IOs = Filter(Cables,""SUBTYPE_CODE = 10"")
+var DistOut = First(Filter(Cables,""Network_Type = 'Distribution' And SUBTYPE_CODE = 10""))
+var Tails = Filter(Cables,""SUBTYPE_CODE = 11"")
+var CONs = FeatureSetByName($datastore,'Conduit',['ObjectID','SUBTYPE_CODE','Status','Duct_Content','Duct_Content_Type','Duct_Segments','Duct_Size','Calculated_Length'],true)
+var Spans = FeatureSetByName($datastore,'Span',['ObjectID','SUBTYPE_CODE','STATUS','GlobalID'],true)
+var OHSpans = Filter(Spans,""SUBTYPE_CODE = 3 AND STRAND_LIST <> '{}'"")
+var UGSpans = Filter(Spans,""SUBTYPE_CODE = 2"")
+var Strands = FeatureSetByName($datastore,'Strand',['ObjectID','SUBTYPE_CODE','STATUS','STRAND_CONTENT','STRAND_CONTENT_TYPE','STRAND_SIZE','Calculated_Length'],true)
+
+var Splices = FeatureSetByName($datastore,'Splice_Closure',['ObjectID','SUBTYPE_CODE','Total_Splices','Fusion_Splices','Ribbon_Splices','Branch_Splices','TOTAL_SPLICE_TRAYS','Total_Ribbon_Splice_Trays','PON_COUNT','Cables','Cables_IN','Cables_OUT','COMMENTS','ENVIRONMENT','STATUS'],true)
+var NAPs = Filter(Splices,""SUBTYPE_CODE = 7"")
+var EQs = FeatureSetByName($datastore,'Equipment',['ObjectID','SUBTYPE_CODE','EQUIPMENT_TYPE','OUTPUT_PORTS','PON_COUNT','HO_1','STRUCTURE_UNID','ENVIRONMENT','STATUS'],true)
+var MSTs = Filter(EQs,""EQUIPMENT_TYPE = 'MST'"")
+var PFP = First(Filter(EQs,""SUBTYPE_CODE = 9""))
+var Poles = Filter(FeatureSetByName($datastore,'Pole',['ObjectID','Pole_ID','Pole_GUID','Prop_HOA','Prop_Ground','Prop_Riser','SUBTYPE_CODE'],true),""SUBTYPE_CODE = 2 AND Pole_Type <> 'Drop Pole'"")
+var UGSTRs = FeatureSetByName($datastore,'UG_Structure',['ObjectID','STR_GUID','SUBTYPE_CODE','STR_ID','GROUNDED','STATUS','DIMENSIONS'],true)
+var STRs = Filter(UGSTRs,""SUBTYPE_CODE <> 15"")
+var Slacks = FeatureSetByName($datastore,'Slack_Loop',['ObjectID','Cable_ID','Cable_GUID','SlackLoop_GUID','SUBTYPE_CODE','Environment','Length_Adjustment','Status'],true)
+var SLs = Filter(Slacks,""SUBTYPE_CODE = 2"")
+var RiserSLs = Filter(Slacks,""SUBTYPE_CODE = 4"")
+var GraPts = FeatureSetByName($datastore,'Graphics_Point',['*'],true)
+//var GraAnchors = Filter(GraPts,""SUBTYPE_CODE IN (15,16)"")
+var GraLns = FeatureSetByName($datastore,'Graphics_Line',['*'],true)
+var GraAnchors = Filter(GraLns,""SUBTYPE_CODE IN (5,6)"")
+var RefBubs = Filter(GraPts,""SUBTYPE_CODE IN (19)"")
+var GraPolys = FeatureSetByName($datastore,'Graphics_Polygon',['*'],true)
+var DTViews = Filter(GraPolys,""SUBTYPE_CODE IN (2)"")
+var Roads = FeatureSetByName($datastore,'Roads',['ObjectID','COMMENTS'],true)
+var ProjDets = FeatureSetByName($datastore,'Project_Details',['*'],true)
+var GndMult = Number(First(ProjDets).SoilRes_GndMult)
+
+var PFPLoc = null
+if (PFP!=null) {PFPLoc = First(Intersects(PFP,UGSTRs))}
+if (PFPLoc==null && Count(Dists)!=0) {return {'errorMessage':'No PFP or PFP not on UG_Structure'}}
+
+function ConvArr(fieldval) {
+  var Arr = iif(Find('\""',fieldval)>=0,
+                Split(Replace(Replace(Replace(fieldval,'\""',''),'[',''),']',''),','),
+                Split(Replace(Replace(fieldval,'[',''),']',''),','))
+  Arr = iif(Text(Arr)=='[""""]',[],Arr)
+  return Arr
+}
+
+var ERRORS = []
+
+if ($feature.General_Tools=='Frame_Units') {
+  var TotUnits = {'INSPECTOR OSP':0,//--N/A--
+               'VAULT - TEST PURGE & VENTILATE':0,//--N/A--
+               'ADD FIBER TRAY OR BASKET':0,//intSPs
+               'AERIAL CABLE TAG':0,//intPoles
+               'AERIAL FIBER SNOWSHOE':0,//intSLs
+               'AERIAL INTERSTATE CROSSING ADDER':0,//intOHSpans
+               'ANCHOR - ROCK':0,//--MANUAL--
+               'ANCHOR - SCREW':0,//intAnchors
+               'BORE ≤ 2.5in CABLE-HDPE':0,//intCONs
+               'BORE 3-4in CABLE-HDPE':0,//intCONs
+               'CASE FIBER NEW':0,//intSPs
+               'CONDUIT EXTERNAL BLDG ≤ 2in':0,//--N/A--
+               'DOWN GUY':0,//intAnchors
+               'DOWN GUY ARM QUEENSPOST-SIDEWALK':0,//intAnchors
+               'DOWN GUY GUARD':0,//intAnchors
+               'DOWN GUY INSULATOR':0,//--N/A--
+               'FIBER DISTRIBUTION HUB - HH OR PAD':0,//intSTRs
+               'FIBER PL IN CONDUIT':0,//intEQs & intnonDrops
+               'FIBER SLACK STORAGE BOX':0,                                       //------------------------
+               'FIBER SPLITTER':0,//intEQs
+               'GROUND ROD 5/8in-8ft':0,//intSTRs & intPoles
+               'HH 12x12in':0,//intSTRs
+               'HH 10x15in':0,//intSTRs
+               'HH 17x30x24in':0,//intSTRs
+               'HH 24x36x24in':0,//intSTRs
+               'HH 30x48x36in':0,//intSTRs
+               'LASH FIBER':0,//intnonDrops
+               'OVERLASH - MULTIPORT TAILS':0,//intEQs
+               'PIT SMALL 6x4x5ft':0,//intSTRs
+               'POLE TAG':0,//--MANUAL--
+               'PREP FIBER CABLE IN HOUSING':0,//intEQs
+               'PREP FIBER CABLE MIDSHEATH CASE':0,//intSPs
+               'PREP FIBER CABLE MIDSHEATH PEDESTAL':0,//--N/A--
+               'PLACE POLE RISER':0,//intPoles
+               'SPLICE FIBER FUSION 1-4':0,//intSPs
+               'SPLICE FIBER FUSION 5-12':0,//intSPs
+               'SPLICE FIBER FUSION 13-24':0,//intSPs
+               'SPLICE FIBER FUSION 25-48':0,//intSPs
+               'SPLICE FIBER FUSION 49-144':0,//intSPs
+               'SPLICE FIBER FUSION 145-288':0,//intSPs
+               'SPLICE FIBER FUSION 289-432':0,//intSPs
+               'SPLICE FIBER FUSION 433-864':0,//intSPs
+               'SPLICE FIBER FUSION >864':0,//intSPs
+               'SPLICE FIBER RIBBONS ≤ 2':0,//intSPs
+               'SPLICE FIBER RIBBONS 3-12':0,//intSPs
+               'SPLICE FIBER RIBBONS 13-24':0,//intSPs
+               'SPLICE FIBER RIBBONS 25-36':0,//intSPs
+               'SPLICE FIBER RIBBONS 37-72':0,//intSPs
+               'SPLICE FIBER RIBBONS >72':0,//intSPs
+               'SPLICE SETUP AND TEARDOWN AERIAL':0,//intSPs
+               'SPLICE SETUP AND TEARDOWN BURIED-HH':0,//intSPs
+               'STRAND 10M':0,//intStrands
+               'STRAND 6M':0,//intStrands
+               'TERMINATE FIBER CONNECTOR':0,//intEQs
+               'TRENCH 36in CVR ≤ 2.5in':0,//--N/A--
+               'TEST FIBER - PWR-MTR OTDR 1-4':0,//intEQs
+               'TEST FIBER - PWR-MTR OTDR 5-12':0,//intEQs
+               'TEST FIBER - PWR-MTR OTDR 13-24':0,
+               'PLACE MULTIPORT - STRAND':0,//intEQs
+               'PLACE MULTIPORT - HH OR PED':0,//intEQs
+               'MAKE READY':0,//--MANUAL--
+               'TREE TRIMMING':0//--MANUAL--
+              }
+
+  var ERBs = {}
+  for (var ERB in RefBubs) {
+    ERBs[Text(ERB.Related_GUID)]=[ERB.Label1,ERB.ObjectID]
+  }
+
+//  var Units = {'INSPECTOR OSP':0,'VAULT - TEST PURGE & VENTILATE':0,'ADD FIBER TRAY OR BASKET':0,'AERIAL CABLE TAG':0,'AERIAL FIBER SNOWSHOE':0,'AERIAL INTERSTATE CROSSING ADDER':0,
+//               'ANCHOR - ROCK':0,'ANCHOR - SCREW':0,'BORE ≤ 2.5in CABLE-HDPE':0,'BORE 3-4in CABLE-HDPE':0,'CASE FIBER NEW':0,'CONDUIT EXTERNAL BLDG ≤ 2in':0,'DOWN GUY':0,
+//               'DOWN GUY ARM QUEENSPOST-SIDEWALK':0,'DOWN GUY GUARD':0,/*'DOWN GUY INSULATOR':0,*/'FIBER DISTRIBUTION HUB - HH OR PAD':0,'FIBER PL IN CONDUIT':0,'FIBER SLACK STORAGE BOX':0,
+//               'FIBER SPLITTER':0,'GROUND ROD 5/8in-8ft':0,'HH 12x12in':0,'HH 10x15in':0,'HH 17x30x24in':0,'HH 24x36x24in':0,'HH 30x48x36in':0,'LASH FIBER':0,'OVERLASH - MULTIPORT TAILS':0,
+//               'PIT SMALL 6x4x5ft':0,'POLE TAG':0,'PREP FIBER CABLE IN HOUSING':0,'PREP FIBER CABLE MIDSHEATH CASE':0,'PREP FIBER CABLE MIDSHEATH PEDESTAL':0,'PLACE POLE RISER':0,
+//               'SPLICE FIBER FUSION 1-4':0,'SPLICE FIBER FUSION 5-12':0,'SPLICE FIBER FUSION 13-24':0,'SPLICE FIBER FUSION 25-48':0,'SPLICE FIBER FUSION 49-144':0,
+//               'SPLICE FIBER FUSION 145-288':0,'SPLICE FIBER FUSION 289-432':0,'SPLICE FIBER FUSION 433-864':0,'SPLICE FIBER FUSION >864':0,
+//               'SPLICE FIBER RIBBONS ≤ 2':0,'SPLICE FIBER RIBBONS 3-12':0,'SPLICE FIBER RIBBONS 13-24':0,'SPLICE FIBER RIBBONS 25-36':0,'SPLICE FIBER RIBBONS 37-72':0,'SPLICE FIBER RIBBONS >72':0,
+//               'SPLICE SETUP AND TEARDOWN AERIAL':0,'SPLICE SETUP AND TEARDOWN BURIED-HH':0,'STRAND 10M':0,'STRAND 6M':0,'TERMINATE FIBER CONNECTOR':0,
+//               'TRENCH 36in CVR ≤ 2.5in':0,'TEST FIBER - PWR-MTR OTDR 1-4':0,'TEST FIBER - PWR-MTR OTDR 5-12':0,'TEST FIBER - PWR-MTR OTDR 13-24':0,
+//               'PLACE MULTIPORT - STRAND':0,'PLACE MULTIPORT - HH OR PED':0,'MAKE READY':0,'TREE TRIMMING':0
+//              }
+
+  var SPCheck = []
+  var CONCheck = []
+  var StdCheck = []
+  var RefBubupdates = []
+  var RefBubadds = []
+  var UnitsbyLoc = {}
+  if (PFPLoc!=null) {if (!HasKey(UnitsbyLoc,Text(PFPLoc.ObjectID))) {UnitsbyLoc[Text(PFPLoc.ObjectID)]=TotUnits}}
+
+  Console('\nnonDrops: '+Count(nonDrops))
+  for (var D in OrderBy(nonDrops,""Calculated_Length DESC"")) {
+    if (Includes([10],D.SUBTYPE_CODE)) {continue}
+    if (D.Status=='Existing') {continue}
+    if (D.SUBTYPE_CODE==11 && D.Adjusted_Length==10) {continue}
+    var Units = {'INSPECTOR OSP':0,'VAULT - TEST PURGE & VENTILATE':0,'ADD FIBER TRAY OR BASKET':0,'AERIAL CABLE TAG':0,'AERIAL FIBER SNOWSHOE':0,'AERIAL INTERSTATE CROSSING ADDER':0,
+                 'ANCHOR - ROCK':0,'ANCHOR - SCREW':0,'BORE ≤ 2.5in CABLE-HDPE':0,'BORE 3-4in CABLE-HDPE':0,'CASE FIBER NEW':0,'CONDUIT EXTERNAL BLDG ≤ 2in':0,'DOWN GUY':0,
+                 'DOWN GUY ARM QUEENSPOST-SIDEWALK':0,'DOWN GUY GUARD':0,/*'DOWN GUY INSULATOR':0,*/'FIBER DISTRIBUTION HUB - HH OR PAD':0,'FIBER PL IN CONDUIT':0,'FIBER SLACK STORAGE BOX':0,
+                 'FIBER SPLITTER':0,'GROUND ROD 5/8in-8ft':0,'HH 12x12in':0,'HH 10x15in':0,'HH 17x30x24in':0,'HH 24x36x24in':0,'HH 30x48x36in':0,'LASH FIBER':0,'OVERLASH - MULTIPORT TAILS':0,
+                 'PIT SMALL 6x4x5ft':0,'POLE TAG':0,'PREP FIBER CABLE IN HOUSING':0,'PREP FIBER CABLE MIDSHEATH CASE':0,'PREP FIBER CABLE MIDSHEATH PEDESTAL':0,'PLACE POLE RISER':0,
+                 'SPLICE FIBER FUSION 1-4':0,'SPLICE FIBER FUSION 5-12':0,'SPLICE FIBER FUSION 13-24':0,'SPLICE FIBER FUSION 25-48':0,'SPLICE FIBER FUSION 49-144':0,
+                 'SPLICE FIBER FUSION 145-288':0,'SPLICE FIBER FUSION 289-432':0,'SPLICE FIBER FUSION 433-864':0,'SPLICE FIBER FUSION >864':0,
+                 'SPLICE FIBER RIBBONS ≤ 2':0,'SPLICE FIBER RIBBONS 3-12':0,'SPLICE FIBER RIBBONS 13-24':0,'SPLICE FIBER RIBBONS 25-36':0,'SPLICE FIBER RIBBONS 37-72':0,'SPLICE FIBER RIBBONS >72':0,
+                 'SPLICE SETUP AND TEARDOWN AERIAL':0,'SPLICE SETUP AND TEARDOWN BURIED-HH':0,'STRAND 10M':0,'STRAND 6M':0,'TERMINATE FIBER CONNECTOR':0,
+                 'TRENCH 36in CVR ≤ 2.5in':0,'TEST FIBER - PWR-MTR OTDR 1-4':0,'TEST FIBER - PWR-MTR OTDR 5-12':0,'TEST FIBER - PWR-MTR OTDR 13-24':0,
+                 'PLACE MULTIPORT - STRAND':0,'PLACE MULTIPORT - HH OR PED':0,'MAKE READY':0,'TREE TRIMMING':0
+                }
+    var DOID = D.ObjectID; var DGUID = D.Cable_GUID
+    var Len = D.Adjusted_Length
+    var OHLen = 0; var UGLen = 0
+    var Start = Geometry(D)['paths'][0][0]
+    var End = Geometry(D)['paths'][0][-1]
+    var DLoc = First(Intersects(Start,UGSTRs)).ObjectID
+    if (D.Transmedia_Type=='Terminal Tail') {DLoc = First(Intersects(End,UGSTRs)).ObjectID}
+    if (!HasKey(UnitsbyLoc,Text(DLoc))) {UnitsbyLoc[Text(DLoc)]=Units}
+    Console('\nDOID: '+DOID+' - Loc: '+DLoc)
+    var SLsql = ""Cable_GUID = \'""+DGUID+""\'""
+    var FSLs = Filter(SLs,SLsql)
+    var FRSLs = Filter(RiserSLs,SLsql)
+    var OHSLen = 0; var UGSLen = 0; var RSLen = 0
+    for (var FSL in FSLs) {
+      var SLOID = FSL.ObjectID
+      var FSLEnv = FSL.Environment; var SLen = FSL.Length_Adjustment
+      var PFPSL = 'N'
+      if (PFPLoc!=null) {if (Intersects(FSL,PFPLoc)) {PFPSL = 'Y'}}
+      iif(FSLEnv=='Aerial',OHSLen+=SLen,iif(PFPSL=='Y',UnitsbyLoc[Text(PFPLoc.ObjectID)]['FIBER PL IN CONDUIT']+=SLen,UGSLen+=SLen))
+    }
+    for (var FRSL in FRSLs) {
+      var SLOID = FRSL.ObjectID
+      var SLen = FRSL.Length_Adjustment
+      RSLen+=SLen
+    }
+    for (var Strand in Contains(D,Strands)) {
+      var StdOID = Strand.ObjectID; var StdLen = Strand.Calculated_Length; var Size = Strand.STRAND_SIZE
+      var StdCs = ConvArr(Strand.STRAND_CONTENT)
+      if (Strand.STATUS=='Existing') {continue}
+      if (!Includes(StdCs,DGUID)) {continue}
+      if (!Includes(StdCheck,Text(StdOID))) {
+        Push(StdCheck,Text(StdOID))
+        iif(Size=='10M',UnitsbyLoc[Text(DLoc)]['STRAND 10M']+=Ceil(StdLen),UnitsbyLoc[Text(DLoc)]['STRAND 6M']+=Ceil(StdLen))
+      }
+      OHLen+=StdLen
+    }
+    for (var CON in Contains(D,CONs)) {
+      var COID = CON.ObjectID; var CLen = CON.Calculated_Length; var Size = CON.Duct_Size
+      var DCs = ConvArr(CON.Duct_Content)
+      if (!Includes(DCs,DGUID)) {continue}
+      var PFPCON = 'N'
+      if (PFPLoc!=null) {if (Intersects(CON,PFPLoc)) {PFPCON = 'Y'}}
+      if (!Includes(CONCheck,Text(COID)) && PFPCON=='N') {
+        Push(CONCheck,Text(COID))
+        iif(Size=='4.00',UnitsbyLoc[Text(DLoc)]['BORE 3-4in CABLE-HDPE']+=Ceil(CLen),UnitsbyLoc[Text(DLoc)]['BORE ≤ 2.5in CABLE-HDPE']+=Ceil(CLen))
+      }
+      if (PFPCON=='N') {UGLen+=Ceil(CLen)}
+      if (PFPCON=='Y') {UnitsbyLoc[Text(PFPLoc.ObjectID)]['FIBER PL IN CONDUIT']+=Ceil(CLen)}
+    }
+    Console('  OHLen: '+Ceil(OHLen)+' / UGLen: '+(Ceil(UGLen)+UGSLen)+' / RiserLen: '+RSLen)
+    UnitsbyLoc[Text(DLoc)]['FIBER PL IN CONDUIT']+=Ceil(UGLen)+UGSLen
+    UnitsbyLoc[Text(DLoc)]['LASH FIBER']+=Ceil(OHLen)+OHSLen
+  }
+
+  for (var PG in Frames) {
+    var PGOID = PG.ObjectID; var PGnum = PG.PageFinal; var Pnum = PG.PageNumber
+    Console('\nFrame: '+Pnum)
+
+    var intLocs = Intersects(PG,UGSTRs)
+    var intOHSpans = Intersects(PG,OHSpans); Console('intOHSpans: '+Count(intOHSpans))
+
+    var pgu = 1
+    var pguDT = 1
+    for (var P in intLocs) {
+      var POID = P.ObjectID; var PGUID = P.STR_GUID
+      Console('\n  POID: '+POID+' ['+PGUID+'] - '+pgu)
+
+      var Units = {'INSPECTOR OSP':0,'VAULT - TEST PURGE & VENTILATE':0,'ADD FIBER TRAY OR BASKET':0,'AERIAL CABLE TAG':0,'AERIAL FIBER SNOWSHOE':0,'AERIAL INTERSTATE CROSSING ADDER':0,
+                   'ANCHOR - ROCK':0,'ANCHOR - SCREW':0,'BORE ≤ 2.5in CABLE-HDPE':0,'BORE 3-4in CABLE-HDPE':0,'CASE FIBER NEW':0,'CONDUIT EXTERNAL BLDG ≤ 2in':0,'DOWN GUY':0,
+                   'DOWN GUY ARM QUEENSPOST-SIDEWALK':0,'DOWN GUY GUARD':0,/*'DOWN GUY INSULATOR':0,*/'FIBER DISTRIBUTION HUB - HH OR PAD':0,'FIBER PL IN CONDUIT':0,'FIBER SLACK STORAGE BOX':0,
+                   'FIBER SPLITTER':0,'GROUND ROD 5/8in-8ft':0,'HH 12x12in':0,'HH 10x15in':0,'HH 17x30x24in':0,'HH 24x36x24in':0,'HH 30x48x36in':0,'LASH FIBER':0,'OVERLASH - MULTIPORT TAILS':0,
+                   'PIT SMALL 6x4x5ft':0,'POLE TAG':0,'PREP FIBER CABLE IN HOUSING':0,'PREP FIBER CABLE MIDSHEATH CASE':0,'PREP FIBER CABLE MIDSHEATH PEDESTAL':0,'PLACE POLE RISER':0,
+                   'SPLICE FIBER FUSION 1-4':0,'SPLICE FIBER FUSION 5-12':0,'SPLICE FIBER FUSION 13-24':0,'SPLICE FIBER FUSION 25-48':0,'SPLICE FIBER FUSION 49-144':0,
+                   'SPLICE FIBER FUSION 145-288':0,'SPLICE FIBER FUSION 289-432':0,'SPLICE FIBER FUSION 433-864':0,'SPLICE FIBER FUSION >864':0,
+                   'SPLICE FIBER RIBBONS ≤ 2':0,'SPLICE FIBER RIBBONS 3-12':0,'SPLICE FIBER RIBBONS 13-24':0,'SPLICE FIBER RIBBONS 25-36':0,'SPLICE FIBER RIBBONS 37-72':0,'SPLICE FIBER RIBBONS >72':0,
+                   'SPLICE SETUP AND TEARDOWN AERIAL':0,'SPLICE SETUP AND TEARDOWN BURIED-HH':0,'STRAND 10M':0,'STRAND 6M':0,'TERMINATE FIBER CONNECTOR':0,
+                   'TRENCH 36in CVR ≤ 2.5in':0,'TEST FIBER - PWR-MTR OTDR 1-4':0,'TEST FIBER - PWR-MTR OTDR 5-12':0,'TEST FIBER - PWR-MTR OTDR 13-24':0,
+                   'PLACE MULTIPORT - STRAND':0,'PLACE MULTIPORT - HH OR PED':0,'MAKE READY':0,'TREE TRIMMING':0
+                  }
+
+      if (!HasKey(UnitsbyLoc,Text(POID))) {UnitsbyLoc[Text(POID)]=Units}
+      //Intersecting Point Features
+      var intSPs = Intersects(P,Filter(Splices,""SUBTYPE_CODE <> 7""))
+      var intNAPs = Intersects(P,Filter(Splices,""SUBTYPE_CODE = 7""))
+      var intEQs = Intersects(P,EQs)
+      var intSLs = Intersects(P,SLs)
+      var intSTRs = Intersects(P,STRs)
+      var intPoles = Intersects(P,Poles)
+      var intAnchors = Intersects(P,GraAnchors)
+      //Intersecting Line Features
+      var intUGSpans = Intersects(P,UGSpans); Console('    intUGSpans: '+Count(intUGSpans))
+      //var intnonDrops = Intersects(P,nonDrops); Console('    intnonDrops: '+Count(intnonDrops))
+      var intCONs = Intersects(P,CONs); Console('    intCONs: '+Count(intCONs))
+      var intStrands = Intersects(P,Strands); Console('    intStrands: '+Count(intStrands))
+
+      //Count up point feature units
+      Console('    intSPs: '+Count(intSPs))
+      var FusionSPs = [[4,'1-4'],[12,'5-12'],[24,'13-24'],[48,'25-48'],[144,'49-144'],[288,'145-288'],[432,'289-432'],[864,'433-864'],[1000,'>864']]
+      var RibbonSPs = [[2,'≤ 2'],[12,'3-12'],[24,'13-24'],[36,'25-36'],[72,'37-72'],[1000,'>72']]
+      for (var F in intSPs) {
+        var FOID = F.ObjectID
+        var FEnv = F.ENVIRONMENT; var Fusions = F.Fusion_Splices; var Ribbons = F.Ribbon_Splices
+        if (F.Cables==null) {return {'errorMessage':'Populate Cables field for splice OID: '+FOID+'.'}}
+        var FCables = ConvArr(F.Cables)
+        //var xy = Text([Round(Geometry(F)['x'],6),Round(Geometry(F)['y'],6)])
+        Console('      FOID: '+FOID)
+        if (F.STATUS!='Existing') {UnitsbyLoc[Text(POID)]['CASE FIBER NEW']++}
+        UnitsbyLoc[Text(POID)]['ADD FIBER TRAY OR BASKET']+=F.TOTAL_SPLICE_TRAYS + F.Total_Ribbon_Splice_Trays
+        if (FEnv=='Aerial') {UnitsbyLoc[Text(POID)]['SPLICE SETUP AND TEARDOWN AERIAL']++}
+        if (FEnv=='Underground') {UnitsbyLoc[Text(POID)]['SPLICE SETUP AND TEARDOWN BURIED-HH']++}
+
+        for (var R in FusionSPs) {
+          var Lim = FusionSPs[R][0]; var Rng = FusionSPs[R][1]
+          if (Fusions>Lim) {continue}
+          UnitsbyLoc[Text(POID)][Text('SPLICE FIBER FUSION '+Rng)]+=Fusions
+          break
+        }
+        for (var R in RibbonSPs) {
+          var Lim = RibbonSPs[R][0]; var Rng = RibbonSPs[R][1]
+          if (Ribbons>Lim) {continue}
+          UnitsbyLoc[Text(POID)][Text('SPLICE FIBER RIBBONS '+Rng)]+=Ribbons
+          break
+        }
+
+        //if (Includes(SPCheck,xy)) {Console('      Skipping doubled up splice cable ends/mids'); continue}
+        //Push(SPCheck,xy)
+        Console(FCables)
+        var FCList = """"
+        for (var FC in FCables) {FCList+=iif(FC>0,',','')+'\''+Text(FCables[FC])+'\''}
+        var SPsql = ""SUBTYPE_CODE NOT IN (11,12) And Cable_GUID IN (""+FCList+"")""
+        Console(SPsql)
+        var EndCoreDists = Count(Touches(F,Filter(Cables,SPsql)))
+        var MidCoreDists = Count(Intersects(F,Filter(Cables,SPsql)))-EndCoreDists
+        UnitsbyLoc[Text(POID)]['PREP FIBER CABLE IN HOUSING']+=EndCoreDists
+        UnitsbyLoc[Text(POID)]['PREP FIBER CABLE MIDSHEATH CASE']+=MidCoreDists
+      }
+
+      Console('    intNAPs: '+Count(intNAPs))
+      for (var F in intNAPs) {
+        var FOID = F.ObjectID
+        var FEnv = F.ENVIRONMENT; var FPONs = Split(Split(F.PON_COUNT,':')[1],'-')
+        if (F.PON_COUNT==null) {continue}
+        Console('      FOID: '+FOID+' / '+FEnv+' '+FPONs)
+        var FCts = Number(FPONs[1])-Number(FPONs[0]-1)
+        var Tethers = Ceil(FCts/12)
+        Console('        Tethers: '+Tethers)
+        UnitsbyLoc[Text(POID)]['TERMINATE FIBER CONNECTOR']+=Tethers
+      }
+
+      Console('    intEQs: '+Count(intEQs))
+      for (var F in intEQs) {
+        if (F.STATUS=='Existing') {continue}
+        var FOID = F.ObjectID
+        var FEnv = F.ENVIRONMENT; var FType = F.EQUIPMENT_TYPE; var FSize = F.OUTPUT_PORTS
+        Console('      FOID: '+FOID+' / '+FEnv+' '+FType+' '+FSize)
+        if (FType=='Splitter') {
+          UnitsbyLoc[Text(POID)]['FIBER SPLITTER']++
+          UnitsbyLoc[Text(POID)]['TERMINATE FIBER CONNECTOR']+=2
+        }
+        if (FType=='MST') {
+          if (FEnv=='Aerial') {UnitsbyLoc[Text(POID)]['PLACE MULTIPORT - STRAND']++}
+          if (FEnv=='Underground') {UnitsbyLoc[Text(POID)]['PLACE MULTIPORT - HH OR PED']++}
+          if (FSize=='4') {UnitsbyLoc[Text(POID)]['TEST FIBER - PWR-MTR OTDR 1-4']++}
+          if (Includes(['6','8','12'],FSize)) {UnitsbyLoc[Text(POID)]['TEST FIBER - PWR-MTR OTDR 5-12']++}
+          var PON = F.PON_COUNT
+          var Tsql = ""PON_Count = \'""+PON+""\'""
+          var EQTail = Filter(Tails,Tsql)
+          for (var T in EQTail) {
+            var TOID = F.ObjectID; var TGUID = T.Cable_GUID
+            var Len = T.Adjusted_Length
+            //if (Includes([10,25],Len) {continue}
+            var OHLen = 0; var UGLen = 0
+            for (var Strand in Strands) {
+              var StdOID = Strand.ObjectID; var StdLen = Ceil(Strand.Calculated_Length); var StdSize = Strand.STRAND_SIZE
+              var StdCs = ConvArr(Strand.STRAND_CONTENT)
+              if (!Includes(StdCs,TGUID)) {continue}
+              OHLen+=StdLen
+              if (Includes(StdCheck,Text(StdOID))) {continue}
+              Push(StdCheck,Text(StdOID))
+              iif(StdSize=='10M',UnitsbyLoc[Text(POID)]['STRAND 10M']+=StdLen,UnitsbyLoc[Text(POID)]['STRAND 6M']+=StdLen)
+            }
+            for (var CON in CONs) {
+              var COID = CON.ObjectID; var CLen = CON.Calculated_Length
+              var DCs = ConvArr(CON.Duct_Content)
+              if (!Includes(DCs,TGUID)) {continue}
+              UGLen+=CLen
+            }
+            UnitsbyLoc[Text(POID)]['FIBER PL IN CONDUIT']+=Ceil(UGLen)
+            UnitsbyLoc[Text(POID)]['OVERLASH - MULTIPORT TAILS']+=Ceil(OHLen)
+            if (FEnv=='Aerial') {UnitsbyLoc[Text(POID)]['OVERLASH - MULTIPORT TAILS']+=Len-(Ceil(UGLen)+Ceil(OHLen))}
+            if (FEnv=='Underground' && UGLen>0) {UnitsbyLoc[Text(POID)]['FIBER PL IN CONDUIT']+=Len-(Ceil(UGLen)+Ceil(OHLen))}
+          }
+        }
+        if (FType=='PFP') {
+          if (Count(IOs)==0) {continue}
+          var intIOs = Touches(F,IOs)
+          //UnitsbyLoc[Text(POID)]['PREP FIBER CABLE IN HOUSING']+=Count(intIOs)
+          for (var IO in intIOs) {
+            var IOOID = IO.ObjectID; var IOGUID = IO.Cable_GUID
+            var IOLen = IO.Adjusted_Length
+            Console('        IOOID: '+IOOID+' - '+IOLen+'\'')
+            var IOCONs = Filter(CONs,""Duct_Content LIKE '%""+IOGUID+""%'"")
+            if (Count(IOCONs)>0) {UnitsbyLoc[Text(POID)]['FIBER PL IN CONDUIT']+=IOLen}
+          }
+/*//Removed due to cabinet tails already installed out of the factory
+          if (DistOut!=null) {
+            var intDists = Touches(Geometry(DistOut)['paths'][0][-1],Dists)
+            for (var D in intDists) {
+              Console('        Dist Cable: '+D.ObjectID+' - '+D.Active_Fibers)
+              UnitsbyLoc[Text(POID)]['TERMINATE FIBER CONNECTOR']+=D.Active_Fibers
+            }
+          }
+*/
+        }
+      }
+
+      Console('    intSLs: '+Count(intSLs))
+      for (var F in intSLs) {
+        if (F.Status=='Existing') {continue}
+        var FOID = F.ObjectID; var CGUID = F.Cable_GUID
+        var FEnv = F.Environment; var SLen = F.Length_Adjustment
+        Console('      FOID: '+FOID+' - '+SLen+'\'')
+        if (FEnv!='Aerial') {continue}
+        var sql = ""Cable_GUID = \'""+CGUID+""\'""
+        var SLCable = First(Filter(Cables,sql))
+        var CEnd = Geometry(SLCable)['paths'][0][-1]
+        var Waterblocker = 'N'
+        var endFLSL = 'N'
+        if (SLCable.Transmedia_Type=='FlexNAP Preterm Lateral' && Touches(F,SLCable) && includes([15,25],SLen)) {Waterblocker='Y'}
+        if (SLCable.Transmedia_Type=='FlexNAP Cable') {
+          if (Equals(Geometry(F),CEnd) && includes([15,25],SLen)) {Waterblocker='Y'}
+        }
+        if (Includes(['FlexNAP Preterm Lateral','FlexNAP Cable'],SLCable.Transmedia_Type) && Equals(Geometry(F),CEnd) && SLen==50) {endFLSL='Y'}
+        UnitsbyLoc[Text(POID)]['AERIAL FIBER SNOWSHOE']+=iif(Waterblocker=='Y',0,iif(endFLSL=='Y',1,2))
+      }
+
+      Console('    intSTRs: '+Count(intSTRs))
+      for (var F in intSTRs) {
+        if (F.STATUS=='Existing') {continue}
+        var FOID = F.ObjectID; var ST = F.SUBTYPE_CODE; var Gnd = F.GROUNDED; var Dims = F.DIMENSIONS
+        Console('      FOID: '+FOID)
+        //if (ST==8) {UnitsbyLoc[Text(POID)]['PIT SMALL 6x4x5ft']++}//No units for Bore Pits
+        if (ST==10) {UnitsbyLoc[Text(POID)]['FIBER DISTRIBUTION HUB - HH OR PAD']++}
+        if (ST==2) {UnitsbyLoc[Text(POID)]['HH 30x48x36in']++}
+        if (ST==3 && Dims=='24x36x24') {UnitsbyLoc[Text(POID)]['HH 24x36x24in']++}
+        //if (ST==3 && Dims=='17x30x24') {UnitsbyLoc[Text(POID)]['HH 17x30x24in']++} //Not using a HH 17x30x24in LU as of 07-24-23
+        if (ST==3 && Dims=='17x30x24') {UnitsbyLoc[Text(POID)]['HH 24x36x24in']++}
+        if (ST==4) {UnitsbyLoc[Text(POID)]['HH 10x15in']++}
+        if (ST==5) {UnitsbyLoc[Text(POID)]['HH 12x12in']++}
+        if (Gnd=='Yes') {UnitsbyLoc[Text(POID)]['GROUND ROD 5/8in-8ft']+=GndMult}
+      }
+
+      Console('    intPoles: '+Count(intPoles))
+      for (var F in intPoles) {
+        var FOID = F.ObjectID; var FST = F.SUBTYPE_CODE
+        var Gnd = F.Prop_Ground; var Ris = F.Prop_Riser
+        Console('      FOID: '+FOID)
+        if (Gnd=='Yes') {UnitsbyLoc[Text(POID)]['GROUND ROD 5/8in-8ft']+=GndMult}
+        if (Ris=='Yes') {UnitsbyLoc[Text(POID)]['PLACE POLE RISER']++}
+        var Adj = 0
+        var PnonDrops = Filter(Intersects(F,nonDrops),""Status <> 'Existing'"")
+        for (var PnD in PnonDrops) {
+          if (PnD.Transmedia_Type!='Terminal Tail') {continue}
+          var Start = Geometry(PnD)['paths'][0][0]
+          if (Equals(Start,Geometry(P))) {Adj--}
+        }
+        UnitsbyLoc[Text(POID)]['AERIAL CABLE TAG']+=iif(Includes([3,4],FST),0,Count(PnonDrops)+Adj)
+      }
+
+      Console('    intAnchors: '+Count(intAnchors))
+      for (var F in intAnchors) {
+        var FOID = F.ObjectID
+        Console('      FOID: '+FOID)
+        UnitsbyLoc[Text(POID)]['ANCHOR - SCREW']++
+        UnitsbyLoc[Text(POID)]['DOWN GUY']++
+        if (F.SUBTYPE_CODE==6) {UnitsbyLoc[Text(POID)]['DOWN GUY ARM QUEENSPOST-SIDEWALK']++}
+        UnitsbyLoc[Text(POID)]['DOWN GUY GUARD']++
+        //UnitsbyLoc[Text(POID)]['DOWN GUY INSULATOR']++
+      }
+
+      //Count up line feature units
+      Console('    intCONs: '+Count(intCONs))
+      for (var F in intCONs) {
+        var FOID = F.ObjectID
+        var Len = Ceil(F.Calculated_Length); var Size = F.Duct_Size
+        Console('      FOID: '+FOID+' - '+Len+'\'')
+        var Start = Geometry(F)['paths'][0][0]
+        var PFPCON = iif(Intersects(F,First(Filter(STRs,""SUBTYPE_CODE = 10""))),'Y','N')
+        if (PFPCON=='Y' && P.SUBTYPE_CODE!=10) {continue}
+        if (PFPCON=='Y' && P.SUBTYPE_CODE==10) {
+          if (!Includes(CONCheck,Text(FOID))) {
+            Push(CONCheck,Text(FOID))
+            iif(Size=='4.00',UnitsbyLoc[Text(POID)]['BORE 3-4in CABLE-HDPE']+=Len,UnitsbyLoc[Text(POID)]['BORE ≤ 2.5in CABLE-HDPE']+=Len)
+          }
+        }
+        if (Equals(Geometry(P),Start)) {
+          Console('        Starts at this location')
+          if (!Includes(CONCheck,Text(FOID))) {
+            Push(CONCheck,Text(FOID))
+            iif(Size=='4.00',UnitsbyLoc[Text(POID)]['BORE 3-4in CABLE-HDPE']+=Len,UnitsbyLoc[Text(POID)]['BORE ≤ 2.5in CABLE-HDPE']+=Len)
+          }
+        }
+      }
+
+      for (var F in intStrands) {
+        var FOID = F.ObjectID
+        if (F.STATUS=='Existing') {continue}
+        if (Includes(StdCheck,Text(FOID))) {continue}
+        Push(StdCheck,Text(FOID))
+        var Len = Ceil(F.Calculated_Length); var Size = F.STRAND_SIZE
+        Console('      FOID: '+FOID+' - '+Len+'\'')
+        var Start = Geometry(F)['paths'][0][0]
+        if (Equals(Geometry(P),Start)) {
+          iif(Size=='10M',UnitsbyLoc[Text(POID)]['STRAND 10M']+=Len,UnitsbyLoc[Text(POID)]['STRAND 6M']+=Len)
+        }
+      }
+
+      var inc = 'N'
+      Console('\nUnits @ '+Text(POID)+':')
+      for (var k in UnitsbyLoc[Text(POID)]) {if (UnitsbyLoc[Text(POID)][k]!=0) {inc = 'Y'; Console(k+' = '+UnitsbyLoc[Text(POID)][k])}}
+
+      var UnitsFormatted = Replace(Replace(Replace(Replace(Replace(Text(UnitsbyLoc[Text(POID)]),',','\n'),'\""',''),':',' = '),'{',''),'}','')
+
+      var DTv = 'N'
+      var intDTView = First(Intersects(P,DTViews))
+      if (intDTView!=null) {
+        DTv = 'Y'
+        var DTPnum = intDTView.Label1
+      }
+      var Page = iif(DTv=='N',Pnum,DTPnum)
+      var LUnum = iif(DTv=='N',pgu,pguDT)
+
+      if (!HasKey(ERBs,Text(PGUID)) && inc=='Y') {
+        var RefBubdata = {'attributes':{'Related_GUID':PGUID,'SUBTYPE_CODE':19,'Label1':UnitsFormatted,'Label2':Page,'Label3':LUnum,'Map_Use':iif(DTv=='Y','DT','CD')},
+                                        'geometry':Geometry(P)
+                         }
+        Push(RefBubadds,RefBubdata)
+      }
+      if (HasKey(ERBs,Text(PGUID)) && inc=='Y') {
+        var RefBubdata = {'ObjectID':ERBs[Text(PGUID)][1],'attributes':{'Related_GUID':PGUID,'Label1':UnitsFormatted,'Label2':Page,'Label3':LUnum}}
+        Push(RefBubupdates,RefBubdata)
+      }
+
+      if (inc=='Y' && DTv=='N') {pgu++}
+      if (inc=='Y' && DTv=='Y') {pguDT++}
+      Console('\n----------------\n')
+    }
+
+    for (var F in intOHSpans) {
+      var FOID = F.ObjectID; var FGlobal = F.GlobalID
+      Console('\nFOID: '+FOID)
+
+      var Units = {'INSPECTOR OSP':0,'VAULT - TEST PURGE & VENTILATE':0,'ADD FIBER TRAY OR BASKET':0,'AERIAL CABLE TAG':0,'AERIAL FIBER SNOWSHOE':0,'AERIAL INTERSTATE CROSSING ADDER':0,
+                   'ANCHOR - ROCK':0,'ANCHOR - SCREW':0,'BORE ≤ 2.5in CABLE-HDPE':0,'BORE 3-4in CABLE-HDPE':0,'CASE FIBER NEW':0,'CONDUIT EXTERNAL BLDG ≤ 2in':0,'DOWN GUY':0,
+                   'DOWN GUY ARM QUEENSPOST-SIDEWALK':0,'DOWN GUY GUARD':0,/*'DOWN GUY INSULATOR':0,*/'FIBER DISTRIBUTION HUB - HH OR PAD':0,'FIBER PL IN CONDUIT':0,'FIBER SLACK STORAGE BOX':0,
+                   'FIBER SPLITTER':0,'GROUND ROD 5/8in-8ft':0,'HH 12x12in':0,'HH 10x15in':0,'HH 30x48x36in':0,'LASH FIBER':0,'OVERLASH - MULTIPORT TAILS':0,
+                   'PIT SMALL 6x4x5ft':0,'POLE TAG':0,'PREP FIBER CABLE IN HOUSING':0,'PREP FIBER CABLE MIDSHEATH CASE':0,'PREP FIBER CABLE MIDSHEATH PEDESTAL':0,'PLACE POLE RISER':0,
+                   'SPLICE FIBER FUSION 1-4':0,'SPLICE FIBER FUSION 5-12':0,'SPLICE FIBER FUSION 13-24':0,'SPLICE FIBER FUSION 25-48':0,'SPLICE FIBER FUSION 49-144':0,
+                   'SPLICE FIBER FUSION 145-288':0,'SPLICE FIBER FUSION 289-432':0,'SPLICE FIBER FUSION 433-864':0,'SPLICE FIBER FUSION >864':0,
+                   'SPLICE FIBER RIBBONS ≤ 2':0,'SPLICE FIBER RIBBONS 3-12':0,'SPLICE FIBER RIBBONS 13-24':0,'SPLICE FIBER RIBBONS 25-36':0,'SPLICE FIBER RIBBONS 37-72':0,'SPLICE FIBER RIBBONS >72':0,
+                   'SPLICE SETUP AND TEARDOWN AERIAL':0,'SPLICE SETUP AND TEARDOWN BURIED-HH':0,'STRAND 10M':0,'STRAND 6M':0,'TERMINATE FIBER CONNECTOR':0,
+                   'TRENCH 36in CVR ≤ 2.5in':0,'TEST FIBER - PWR-MTR OTDR 1-4':0,'TEST FIBER - PWR-MTR OTDR 5-12':0,'TEST FIBER - PWR-MTR OTDR 13-24':0,
+                   'PLACE MULTIPORT - STRAND':0,'PLACE MULTIPORT - HH OR PED':0,'MAKE READY':0,'TREE TRIMMING':0
+                  }
+
+      if (!HasKey(UnitsbyLoc,Text(FGlobal))) {UnitsbyLoc[Text(FGlobal)]=Units}
+      var Interstates = Filter(Roads,""COMMENTS = 'I'"")
+      var intIs = Intersects(F,Interstates)
+      if (Count(intIs)==0) {continue}
+      var FBuff = BufferGeodetic(F,0.1,'feet'); var IBuff = BufferGeodetic(First(intIs),0.1,'feet')
+      var Crossing = Centroid(Intersection(FBuff,IBuff))
+      if (Contains(Geometry(PG),Crossing)) {UnitsbyLoc[Text(FGlobal)]['AERIAL INTERSTATE CROSSING ADDER']++}
+
+      var inc = 'N'
+      Console('\nUnits @ '+Text(FGlobal)+':')
+      for (var k in UnitsbyLoc[Text(FGlobal)]) {if (UnitsbyLoc[Text(FGlobal)][k]!=0) {inc = 'Y'; Console(k+' = '+UnitsbyLoc[Text(FGlobal)][k])}}
+
+      var UnitsFormatted = Replace(Replace(Replace(Replace(Replace(Text(UnitsbyLoc[Text(FGlobal)]),',','\n'),'\""',''),':',' = '),'{',''),'}','')
+
+      var DTv = 'N'
+      var intDTView = First(Intersects(Crossing,DTViews))
+      if (intDTView!=null) {
+        DTv = 'Y'
+        var DTPnum = intDTView.Label1
+      }
+      var Page = iif(DTv=='N',Pnum,DTPnum)
+      var LUnum = iif(DTv=='N',pgu,pguDT)
+
+      if (!HasKey(ERBs,Text(FGlobal)) && inc=='Y') {
+        var CrossGeom = Point({'x':Crossing['x'],'y':Crossing['y'],'z':0,'spatialReference':{'wkid':4326}})
+        var RefBubdata = {'attributes':{'Related_GUID':Text(FGlobal),'SUBTYPE_CODE':19,'Label1':UnitsFormatted,'Label2':Page,'Label3':LUnum,'Map_Use':iif(DTv=='Y','DT','CD')},
+                                        'geometry':CrossGeom
+                         }
+        Push(RefBubadds,RefBubdata)
+      }
+      if (HasKey(ERBs,Text(FGlobal)) && inc=='Y') {
+        var RefBubdata = {'ObjectID':ERBs[Text(FGlobal)][1],'attributes':{'Related_GUID':Text(FGlobal),'Label1':UnitsFormatted,'Label2':Page,'Label3':LUnum}}
+        Push(RefBubupdates,RefBubdata)
+      }
+
+      if (inc=='Y' && DTv=='N') {pgu++}
+      if (inc=='Y' && DTv=='Y') {pguDT++}
+      Console('\n----------------\n')
+    }
+
+    Console('\n--------Next Frame--------\n')
+  }
+
+  Console('\nRefBubupdates: [' + Count(RefBubupdates) + ']')
+  //for (var key in RefBubupdates) {Console('\n'+key + ':' + RefBubupdates[key])}
+  Console('\nRefBubadds: [' + Count(RefBubadds) + ']')
+  for (var key in RefBubadds) {Console('\n'+key + ':' + RefBubadds[key]['attributes']['Related_GUID']+' - '+RefBubadds[key]['geometry'])}
+
+  Console('\nERRORS:\n' + ERRORS)
+
+  return {
+    'result':iif(Count(ERRORS)!=0,iif(Count(Text(ERRORS))>5000,Left(Text(ERRORS),4997)+'...',ERRORS),'No Errors'),
+    'edit':[  
+      {'className':'Graphics_Point',
+      'updates':RefBubupdates},
+      {'className':'Graphics_Point',
+      'adds':RefBubadds}
+    ]
+  }
+}",,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Demand Point Tools 1,Building Snap; Label Update,CALCULATION,,Demand_Point_Tools_Rules_1,True,False,False,True,"var Parcels = FeatureSetByName($datastore,'Parcel',['ObjectID'],true)
+var Buildings = FeatureSetByName($datastore,'BuildingFootprint',['ObjectID','Address_List','Units'],true)
+var DPs = FeatureSetByName($datastore,'Demand_Point',['ObjectID','Comments','SUBTYPE_CODE','Address','Add_Number','Unit'],true)
+//BUILDING SNAP
+if ($feature.Demand_Point_Tools == 'Building_Snap') {
+    var ERRORS = []
+    var BldgsbyParcel = Dictionary()
+    for (var Parcel in Parcels) {BldgsbyParcel[Text(Parcel.ObjectID)] = []}
+    for (var Building in Buildings) {
+        var Center = Point(Centroid(Building))
+        //Console('Building Center: (' + Building.ObjectID + ')\n' + Center)
+        var intParcel = First(Intersects(Center,Parcels))
+        //Console('Found in parcel ' + intParcel.ObjectID)
+        if (IsEmpty(intParcel)) {Console('Building center not in a parcel.'); Console('\n----------<NEXT BUILDING>----------\n'); continue}
+        else {Push(BldgsbyParcel[Text(intParcel.ObjectID)],Text(Building.ObjectID))}
+        //Console('\n----------<NEXT BUILDING>----------\n')
+    }
+    //Console('Building centers by Parcel:\n' + BldgsbyParcel)
+    var DPupdates = []
+    var DPupdateList = []
+    for (var Parcel in Parcels) {
+        Console('Parcel OID: ' + Parcel.ObjectID)
+        var intBldgs = Intersects(Parcel,Buildings)
+        Console('Buildings: ' + Count(intBldgs))
+        if (Count(intBldgs)==0) {Console('No buildings in parcel ' + Parcel.ObjectID + ' - skipping.'); Console('\n--------------------<NEXT PARCEL>--------------------\n'); continue}
+        if (Count(intBldgs)==1) {
+            Console('Attempting to move any DPs in this parcel')
+            var intDPs = Intersects(Parcel,DPs)
+            if (Count(intDPs)==0) {Console('No DP in parcel ' + Parcel.ObjectID + ' - skipping.'); Console('\n--------------------<NEXT PARCEL>--------------------\n'); continue}
+            var intBldg = First(intBldgs)
+            var Center = Centroid(Intersection(Geometry(Parcel),Geometry(intBldg)))
+            Console(Count(intDPs))
+            if (Count(intDPs)>52) {Console('Building '+intBldg.ObjectID+' has over 52 DP, they\'ll be skipped.')}
+            var i = 1
+            var n = 0
+            var lim = 4
+            var rad = 4
+            for (var intDP in intDPs) {
+                Console('    DP OID: ' + intDP.ObjectID)
+                if (Count(intDPs)>52) {continue}
+                //Console('intDP Geom:\n' + Geometry(intDP))
+                //Console('Centroid Geom:\n' + Center)
+                if (Equals(intDP,Center)) {Console('    This DP already in building center - skipping.'); Console('\n    ----------<NEXT DP>----------\n'); continue}
+                if (i==5) {rad = 8; n = 4; lim = 12}
+                if (i==17) {rad = 12; n = 16; lim = 36}
+                if (Count(intDPs)>=2) {
+                    var CenterRing = BufferGeodetic(Center,rad,'feet')
+                    Console('Center Ring:\n' + CenterRing)
+                    var Increment = Count(CenterRing['rings'][0])/iif((Count(intDPs)-n) <= lim,Count(intDPs)-n,lim)
+                    Console(Increment)
+                    var Vert = Floor((i-n)*Increment)
+                    Console('    Vertex to place DP at: ' + CenterRing['rings'][0][Vert-1])
+                    var NewCenter = CenterRing['rings'][0][Vert-1]
+                    var DPdata = {'ObjectID':intDP.ObjectID,'geometry':{'x':NewCenter['x'],'y':NewCenter['y'],'z':0,'spatialReference':{'wkid':4326}}}
+                }
+                else {
+                    var DPdata = {'ObjectID':intDP.ObjectID,'geometry':{'x':Center['x'],'y':Center['y'],'z':0,'spatialReference':{'wkid':4326}}}
+                }
+                DPdata['geometry'] = Point(DPdata['geometry'])
+                Push(DPupdates,DPdata)
+                i += 1
+                Console('\n    ----------<NEXT DP>----------\n')
+            }
+        }
+        if (Count(intBldgs)>=2) {
+            Console('No clear building within parcel ' + Parcel.ObjectID + '.\nChecking (' + Count(intBldgs) + ') building for DPs to move to the center.')
+            //Console('Buildings meant for this parcel:\n' + BldgsbyParcel[Text(Parcel.ObjectID)])
+            for (var intBldg in intBldgs) {
+                Console('    Building OID: ' + intBldg.ObjectID)
+                if (!Includes(BldgsbyParcel[Text(Parcel.ObjectID)],Text(intBldg.ObjectID))) {Console('    This building belongs to another parcel - skipping.'); Console('\n    ----------------<NEXT BUILDING>----------------\n'); continue}
+                var Center = Centroid(Intersection(Geometry(Parcel),Geometry(intBldg)))
+                var intDPs = Intersects(intBldg,DPs)
+                if (Count(intDPs)==0) {Console('    No DP in building ' + intBldg.ObjectID + ' - skipping.'); Console('\n    ----------------<NEXT BUILDING>----------------\n'); continue}
+                if (Count(intDPs)>52) {Console('    Building '+intBldg.ObjectID+' has over 52 DP, they\'ll be skipped.')}
+                Console('    Building has ' + Count(intDPs) + ' DPs.')
+                var i = 1
+                var n = 0
+                var lim = 4
+                var rad = 4
+                for (var intDP in intDPs) {
+                    Console('        DP OID: ' + intDP.ObjectID)
+                    if (Count(intDPs)>52) {continue}
+                    //Console('intDP Geom:\n' + Geometry(intDP))
+                    //Console('Centroid Geom:\n' + Center)
+                    if (i==5) {rad = 8; n = 4; lim = 12}
+                    if (i==17) {rad = 12; n = 16; lim = 36}
+                    if (Count(intDPs)>=2) {
+                        var CenterRing = BufferGeodetic(Center,rad,'feet')
+                        Console('Center Ring:\n' + CenterRing)
+                        Console(Count(CenterRing['rings'][0]))
+                        var Increment = Count(CenterRing['rings'][0])/iif((Count(intDPs)-n) <= lim,Count(intDPs)-n,lim)
+                        Console(Increment)
+                        var Vert = Floor((i-n)*Increment)
+                        Console('        Vertex to place DP at: ' + CenterRing['rings'][0][Vert-1])
+                        var NewCenter = CenterRing['rings'][0][Vert-1]
+                        var DPdata = {'ObjectID':intDP.ObjectID,'geometry':{'x':NewCenter['x'],'y':NewCenter['y'],'z':0,'spatialReference':{'wkid':4326}}}
+                    }
+                    else {
+                        if (Equals(intDP,Center)) {Console('        This DP already in building center - skipping.'); Console('\n        ----------<NEXT DP>----------\n'); continue}
+                        var DPdata = {'ObjectID':intDP.ObjectID,'geometry':{'x':Center['x'],'y':Center['y'],'z':0,'spatialReference':{'wkid':4326}}}
+                    }
+                    DPdata['geometry'] = Point(DPdata['geometry'])
+                    Push(DPupdates,DPdata)
+                    Push(DPupdateList,DPdata['ObjectID'])
+                    i += 1
+                    Console('\n        ----------<NEXT DP>----------\n')
+                }
+                Console('\n    ----------------<NEXT BUILDING>----------------\n')
+            }
+            //Check each building.
+            //Find DP in building.
+            //If DP are in building, move to center.
+                //If building is in multiple parcels, move to center of intersection of building.
+        }
+        Console('\n--------------------<NEXT PARCEL>--------------------\n')
+    }
+    var DPCt = 0
+    var DPMiss = []
+    for (var DP in DPs) {
+        if (!Includes(DPupdateList,DP.ObjectID)) {Push(DPMiss,DP.ObjectID)}
+        DPCt+=1
+    }
+    var ERRMSG = Count(DPMiss) + '/' + DPCt + ' DP not moved: ' + DPMiss
+    if (Count(DPMiss)>0) {Push(ERRORS,iif(Count(Text(ERRMSG))>5000,Left(Text(ERRMSG),4997)+'...',ERRMSG))}
+    return {
+        'result':iif(Count(ERRORS)!=0,ERRORS,'No Errors'),
+        'edit':[  
+            {'className':'Demand_Point',
+             'updates':DPupdates}
+        ]
+    }
+}
+//LABEL UPDATES
+if ($feature.Demand_Point_Tools == 'Label_Update') {
+   var DPupdates = []
+   var Bldgupdates = []
+   for (var Building in Buildings) {
+        var ignoreVal = [null,'',' ','   ','    ','     ','      ']
+        var intDPs = Intersects(Building,DPs)
+        Console(Count(intDPs))
+        if (Count(intDPs)==0) {var Bldgdata = {'ObjectID':Building.ObjectID,'attributes':{'Address_List':null,'Units':0}}; Push(Bldgupdates,Bldgdata); continue}
+        var AddList = ''
+        var i = 0
+        for (var intDP in intDPs) {
+            if (i==0) {
+                AddList = iif(Includes(ignoreVal,intDP.Address),'Unknown Address',intDP.Address + iif(IsEmpty(intDP.Unit),null,'-' + intDP.Unit))
+            }
+            else {
+                AddList += iif(Includes(ignoreVal,intDP.Address),',Unknown Address',',' + intDP.Address + iif(IsEmpty(intDP.Unit),null,'-' + intDP.Unit))
+            }
+            i += 1
+        }
+        Console('Address list at building ' + Building.OBJECTID + ':\n' + AddList)
+        var AddList = Split(AddList,',')
+        Console(Count(AddList))
+        var Counts = Dictionary('Total',Count(AddList))
+        for (var Add in AddList) {
+            Console(AddList[Add])
+            var AddNum = Split(AddList[Add],' ')[0]
+            if (AddNum == 'Unknown') {AddNum = Replace(AddNum,'Unknown','Unk')}
+            Console(AddNum)
+            if (!HasKey(Counts,AddNum)) {Counts[Text(AddNum)] = 1}
+            else {Counts[Text(AddNum)] += 1}
+            Console('\n    ----------<NEXT ADDRESS>----------\n')
+        }
+        //Console('Counts:\n' + Text(Counts))
+        var AddlistFormatted = Replace(Replace(Replace(AddList,'\""',''),'[',''),']','')
+        var Bldgdata = {'ObjectID':Building.ObjectID,'attributes':{'Address_List':AddlistFormatted,'Units':Text(Counts)}}
+        Push(Bldgupdates,Bldgdata)
+        //Console('Bldgdata:\n' + Bldgdata)
+        Console('\n----------------<NEXT BUILDING>----------------\n')
+    }
+    for (var DP in DPs) {
+        var intBldgs = Intersects(DP,Buildings)
+        if (Count(intBldgs)==0) {
+            var DPdata = {'ObjectID':DP.ObjectID,'attributes':{'Comments':iif(IsEmpty(DP.Comments),'Label',DP.Comments + ';Label')}}
+            Push(DPupdates,DPdata)
+        }
+        else {
+            var DPdata = {'ObjectID':DP.ObjectID,'attributes':{'Comments':iif(IsEmpty(DP.Comments),null,Replace(DP.Comments,'Label',''))}}
+            Push(DPupdates,DPdata)
+        }
+    }
+    Console('Building updates:\n' + Bldgupdates)
+    Console('DP updates:\n' + DPupdates)
+    return {
+        'result': $feature.Demand_Point_Tools_Rules_1,
+        'edit':
+        [  
+            {
+                'className':'BuildingFootprint', 
+                'updates':Bldgupdates
+            },
+            {
+                'className':'Demand_Point', 
+                'updates':DPupdates
+            }  
+        ]
+    }
+}
+else {
+    return $feature.Demand_Point_Tools_Rules_1
+}",,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Demand Point Tools 2,,CALCULATION,,Demand_Point_Tools_Rules_2,True,False,False,True,//Placeholder,,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Demand Point Tools 3,,CALCULATION,,Demand_Point_Tools_Rules_3,True,False,False,True,//Placeholder,,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Span Tools 1,Validate Span Geometry,CALCULATION,,Span_Tools_Rules_1,True,False,False,True,"var Spans = FeatureSetByName($datastore,'Span',['ObjectID'],true)
+var UGSTRs = FeatureSetByName($datastore,'UG_Structure',['ObjectID'],true)
+var Cables = FeatureSetByName($datastore,'Transmedia',['ObjectID'],true)
+//VALIDATE SPAN GEOMETRY
+if ($feature.Span_Tools=='GeoVal') {
+  var SpanOverlap = []
+  var CableGeoMismatch = []
+  for (var S in Spans) {
+    var SOID = S.ObjectID
+    var SPts = Geometry(S)['paths'][0]
+    Console('\nSpan OID: '+SOID)
+    Console('\nSpan Pts:')
+    for (var SPt in SPts) {Console(SPt+': '+SPts[SPt])}
+    //Check span geometry matches expected
+    var intSpans = Intersects(S,Filter(Spans,""ObjectID <> ""+Number(SOID)+""""))
+    if (Count(intSpans)==0) {Push(SpanOverlap,'Span OID: '+SOID+' is isolated.')}
+    for (var intS in intSpans) {
+      var intSOID = intS.ObjectID
+      //Console('\n  Intersected Span OID: '+intSOID)
+      if (!Touches(intS,S)) {
+        Push(SpanOverlap,'Span OID: '+SOID+' overlaps Span OID: '+intSOID)
+        //Console('\n    '+SOID+' overlaps Span OID: '+intSOID)
+      }
+    }
+    //Check UG_Structure matches expected
+    var intUGSTRs = Intersects(S,UGSTRs)
+    if (Count(intUGSTRs)!=2) {Push(SpanOverlap,'Span OID: '+SOID+' intersects the wrong number of UG_Structures ('+Count(intUGSTRs)+').')}
+    //Check cable geometry match
+    var intCs = Intersects(S,Filter(Cables,""SUBTYPE_CODE NOT IN (10,12)""))
+    for (var intC in intCs) {
+      if (!Contains(intC,S)) {continue}
+      var intCOID = intC.ObjectID
+      Console('\n  Intersected Cable OID: '+intCOID)
+      var intCPts = Geometry(intC)['paths'][0]
+      var intCStart = intCPts[0]; var intCEnd = intCPts[-1]
+      if (Equals(intCStart,intCEnd)) {continue}
+      var OnSpans = 0
+      for (var intCPt in intCPts) {
+        var CPt = intCPts[intCPt]
+        if (!Intersects(CPt,S)) {continue}
+        Console('    Cable Vertex: '+CPt)
+        OnSpans++
+      }
+      var VertexSurplus = OnSpans-Count(SPts)
+      if (VertexSurplus>0) {
+        Push(CableGeoMismatch,'At Span OID: '+SOID+' - Cable OID: '+intCOID+' has ('+VertexSurplus+') extra vertices.')
+      }
+    }
+  }
+
+  var ErrMSG = ''
+  ErrMSG += iif(Count(SpanOverlap)==0,'\n\nAll Spans touch each other appropriately.','\n\n'+Concatenate(SpanOverlap,'\n'))
+  ErrMSG += iif(Count(CableGeoMismatch)==0,'\n\nAll Spans and Cables have matching vertices.','\n\n'+Concatenate(CableGeoMismatch,'\n'))
+  Console(ErrMSG)
+  return {'errorMessage':ErrMSG}
+}",,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Span Tools 2,Aerial Snap,CALCULATION,,Span_Tools_Rules_2,True,False,False,True,"//Placeholder
+var Spans = FeatureSetByName($datastore,'Span',['ObjectID','SUBTYPE_CODE'],true)
+var OHSpans = Filter(Spans,""SUBTYPE_CODE = 3"")
+var UGSTRs = FeatureSetByName($datastore,'UG_Structure',['ObjectID','SUBTYPE_CODE'],true)
+var UGPoles = Filter(UGSTRs,""SUBTYPE_CODE = 15"")
+var ERRORS = []
+//AERIAL SNAP
+if ($feature.Span_Tools=='Aerial_Snap') {
+  var PolePts = {}
+  for (var P in UGPoles) {
+    var PGeom = Geometry(P)
+    PolePts[Text(P.ObjectID)] = [PGeom['x'],PGeom['y'],0,null]
+  }
+  var Xings = []
+  var XingPoles = []
+  for (var S in OHSpans) {
+    var XSpans = Intersects(S,OHSpans)
+    for (var XS in XSpans) {
+      if (Equals(Geometry(XS),Geometry(S)) || Touches(Geometry(XS),Geometry(S))) {continue}
+      var Xing = Centroid(Intersection(BufferGeodetic(XS,0.1,'feet'),BufferGeodetic(S,0.1,'feet')))
+      if (!Includes(Xings,Xing)) {Push(Xings,Xing)}
+    }
+  }
+  Console('Xings:\n' + Xings)
+  for (var X in Xings) {
+    var XBuff = BufferGeodetic(Xings[X],25,'feet')
+    var intPoles = Intersects(XBuff,UGPoles)
+    if (Count(intPoles)>0) {for (var I in intPoles) {
+      var IOID = I.ObjectID
+      var add='Y'
+      for (var XP in XingPoles) {if (XingPoles[XP][0]==IOID) {add='N';break}}
+      if (add=='Y') {Push(XingPoles,[IOID,Geometry(I)])}
+    }}
+  }
+  Console('XingPoles:\n' + XingPoles)
+  var Spanadds = []
+  var Spanupdates = []
+  var SnapErrors = []
+  var PoleMiss = []
+  for (var S in OHSpans) {
+    var SOID = Text(S.ObjectID)
+    var SGeom = Geometry(S)
+    //Densify line geometry to create more points for finding nearby poles to snap to
+    var SGeomDens = DensifyGeodetic(SGeom,50,'feet')
+    var SPts = SGeomDens['paths'][0]
+    Console('Span OID: ' + SOID)
+    //Console(SPts)
+    var SnapPts = []
+    var AmbSnaps = []
+    for (var n=0; n<Count(SPts); n++) {
+      var ptGeom = SPts[n]
+      var NearDist = 25
+      var Near = null
+      Console('  Point ' + n + ': ' + ptGeom)
+      var ptBuff = BufferGeodetic(ptGeom,NearDist,'feet')
+      var intPoles = Intersects(ptBuff,UGPoles)
+      Console('  ' + Count(intPoles) + ' Poles within 25\'.')
+      if (Count(intPoles)>0) {for (var I in intPoles) {
+        var IOID = Text(I.ObjectID)
+        Console('    Pole OID: ' + IOID)
+        var Dist = DistanceGeodetic(Point(Geometry(I)),ptGeom)
+        if (Dist < NearDist) {NearDist = Dist; Near = IOID}
+      }}
+      //Error Handling
+      if ((n==(Count(SPts)-1) || n==0) && Count(intPoles)==0) {Push(PoleMiss,[Round(ptGeom['x'],6),Round(ptGeom['y'],6)])}
+      if (Count(intPoles)>1) {for (var I in intPoles) {
+        Push(AmbSnaps,I.ObjectID)
+      }}
+      //End Error Handling
+      if (Near==null) {continue}
+      if (!Includes(SnapPts,Near)) {Push(SnapPts,Near)}
+    }
+    Console('Snap Points: ' + SnapPts)
+    var del = 'Y'
+    for (var n=0; n<Count(SnapPts)-1; n++) {
+      var p0 = PolePts[Text(SnapPts[n])]
+      var p1 = PolePts[Text(SnapPts[n+1])]
+      var NSpan = {'attributes':{'SUBTYPE_CODE':3,'SPAN_TYPE':'Aerial'},'geometry':Polyline({'hasZ':true,'hasM':true,'paths':[[p0,p1]],'spatialReference':{'wkid':4326}})}
+      if (!Equals(NSpan['geometry'],SGeom)) {
+        Push(Spanadds,NSpan)
+      }
+      if (Equals(NSpan['geometry'],SGeom)) {del='N'}
+    }
+    if (del=='Y') {Push(Spanupdates,{'ObjectID':SOID,'attributes':{'SUBTYPE_CODE':1}})}
+    //Error Handling
+    if (Count(AmbSnaps)>0) {Push(SnapErrors,AmbSnaps)}
+    //End Error Handling
+    Console('Next Span\n')
+  }
+  //Error Handling
+  var PotXOs = []
+  if (Count(XingPoles)>0) {for (var X in XingPoles) {
+    var XPOID = XingPoles[X][0]
+    var XPt = XingPoles[X][1]
+    var Ct = 0
+    if (Count(Spanadds)>0) {for (var S in Spanadds) {
+      if (Intersects(Spanadds[S]['geometry'],XPt)) {Ct++}
+    }}
+    Console(XPOID + ': ' + Ct)
+    if (Ct>3) {Push(PotXOs,XPOID)}
+  }}
+  if (Count(PotXOs)>0) {Push(ERRORS,'Potential Crossovers at these UG_Structure Poles: ' + PotXOs + '\n')}
+  if (Count(PoleMiss)>0) {Push(ERRORS,'Possibly missing Pole(s) here: ' + PoleMiss + '\n')}
+  if (Count(SnapErrors)>0 && Count(Spanadds)>0) {Push(ERRORS,'Verify snaps made at these UG_Structure Poles: ' + SnapErrors + '\n')}
+  //End Error Handling
+  Console('\nSpanadds:\n')
+  for (var key in Spanadds) {Console(key + ': ' + Spanadds[key])}
+  Console('\nSpanupdates:\n')
+  for (var key in Spanupdates) {Console(key + ': ' + Spanupdates[key])}
+  Console('ERRORS\n' + ERRORS)
+  return {
+    'result':iif(Count(ERRORS)!=0,iif(Count(Text(ERRORS))>5000,Left(Text(ERRORS),4997)+'...',ERRORS),'No Errors'),
+    'edit':[
+      {'className':'Span',
+      'adds':Spanadds},
+      {'className':'Span',
+      'updates':Spanupdates}
+    ]
+  }
+}",,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Span Tools 3,,CALCULATION,,Span_Tools_Rules_3,True,False,False,True,//Placeholder,,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Pole Tools 1,,CALCULATION,,Pole_Tools_Rules_1,True,False,False,True,//Placeholder,,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Pole Tools 2,,CALCULATION,,Pole_Tools_Rules_2,True,False,False,True,//Placeholder,,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Pole Tools 3,,CALCULATION,,Pole_Tools_Rules_3,True,False,False,True,//Placeholder,,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+UG Structure Tools 1,,CALCULATION,,UG_Structure_Tools_Rules_1,True,False,False,True,//Placeholder,,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+UG Structure Tools 2,,CALCULATION,,UG_Structure_Tools_Rules_2,True,False,False,True,//Placeholder,,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+UG Structure Tools 3,,CALCULATION,,UG_Structure_Tools_Rules_3,True,False,False,True,//Placeholder,,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Dimensions Tools 1,Create EOP Dims; Create ROW Dims,CALCULATION,,Dimensions_Tools_Rules_1,True,False,False,True,"var GraPolys = FeatureSetByName($datastore,'Graphics_Polygon',['*'],true)
+var DTViews = Filter(GraPolys,""SUBTYPE_CODE IN (2)"")
+
+function closest_feature(test_feature, compare_feature_set) {
+  // returns the feature of compare_feature_set that is closest to test_feature
+  Console('Closest_Feature')
+  var min_distance = 100000
+  var closest_feature = null
+  for(var f in compare_feature_set) {
+    var d = DistanceGeodetic(test_feature, Geometry(f), 'feet')
+    if (d < min_distance) {
+      min_distance = d
+      closest_feature = f
+    }
+  }
+  return closest_feature
+}
+function project_orthogonally(point_geometry, line_geometry) {
+  Console('Project_Orthogonally')
+  var p = point_geometry
+  var r0 = line_geometry['paths'][0][0]
+  var r1 = line_geometry['paths'][-1][-1]
+  var ux = r1['x'] - r0['x']
+  var uy = r1['y'] - r0['y']
+  var lambda = ((p['x']-r0['x'])*ux + (p['y']-r0['y'])*uy) / (ux*ux + uy*uy)
+  var new_p = Point({""x"": r0['x'] + lambda * ux, ""y"": r0['y'] + lambda * uy, ""spatialReference"": {'wkid':4326}})
+  //If new_p is on the line defined by r0 and r1 but not on the actual line_geometry, snap it to the closest end point
+  if (Disjoint(new_p, line_geometry)) {
+    new_p = iif(DistanceGeodetic(r0, p, 'feet') < DistanceGeodetic(r1, p, 'feet'), r0, r1)
+  }
+  return new_p
+}
+var Dimsql = ""SUBTYPE_CODE IN (2,3,4,5,6,7,8,9,10,12,13,14)""
+var STRs = FeatureSetByName($datastore,'UG_Structure',['ObjectID','SUBTYPE_CODE'],true)
+var DimSTRs = Filter(STRs,Dimsql)
+var EOPs = FeatureSetByName($datastore,'Landbase_EOP',['ObjectID'],true)
+var ROWs = FeatureSetByName($datastore,'Landbase_ROW',['ObjectID'],true)
+var Dims = FeatureSetByName($datastore,'Dimensions',['ObjectID'],true)
+//CREATE DIMS
+if ($feature.Dimensions_Tools=='Create_Dims') {
+    //Store existing dim data
+    var EDims = Dictionary()
+    for (var Dim in Dims) {
+        var geom = Geometry(Dim)
+        EDims[Text(Dim.ObjectID)] = geom
+    }
+    var DimTypes = ['ROW','EOP']
+    var OffSide = ['T','B']
+    var Dimadds = []
+    for (var D in DimTypes) {
+        var Lines = iif(DimTypes[D]=='ROW',ROWs,EOPs)
+        for (var STR in DimSTRs) {
+            var intLines = Intersects(Lines,BufferGeodetic(STR,50,'feet'))
+            if (Count(Intersects(STR,Lines))>0) {continue}
+            Console(STR.ObjectID + ': ' + Count(intLines))
+            var ProjPts = {""fields"": [], ""spatialReference"": {'wkid':4326}, ""geometryType"": ""esriGeometryPoint"", ""features"": []}
+            if (Count(intLines)>0) {for (var Line in intLines) {
+                var vertices = Geometry(Line)['paths'][0]
+                for (var s=0; s<Count(vertices)-1; s++) {
+                    var p0 = vertices[s]
+                    var p1 = vertices[s+1]
+                    var seg = Polyline({""paths"": [[ [p0['x'], p0['y']], [p1['x'], p1['y']] ]], ""spatialReference"": {'wkid':4326}})
+                    Console('Segment:\n' + seg)
+                    var ProjPt = project_orthogonally(Geometry(STR), seg)
+                    Console('Projected Point:\n' + ProjPt)
+                    Push(ProjPts['features'], {""geometry"": ProjPt})
+                }
+            }}
+            Console('Projected Points:\n' + ProjPts)
+            ProjPts = FeatureSet(Text(ProjPts))
+            var ProjPt = Geometry(closest_feature(Geometry(STR), ProjPts))
+            Console('Closest Point:\n' + ProjPt)
+            Console('Closest Point X: ' + ProjPt['x'])
+            Console('Closest Point Y: ' + ProjPt['y'])
+            var DimPath = []
+            var Dimdata = {'attributes':{'Offset_Side':OffSide[D],'Offset_Distance':'2','Map_Use':'CD'},'geometry':{'hasZ':true,'hasM':true,'paths':[],'spatialReference': {'wkid':4326}}}
+            Push(DimPath,[Geometry(STR)['x'],Geometry(STR)['y'],0,null])
+            Push(DimPath,[ProjPt['x'],ProjPt['y'],0,null])
+            Push(Dimdata['geometry']['paths'],DimPath)
+            Dimdata['geometry'] = Polyline(Dimdata['geometry'])
+            Console(Dimdata['geometry'])
+            for (var DT in DTViews) {
+              if (Intersects(DT,Dimdata['geometry'])) {Dimdata['attributes']['Map_Use']='DT'}
+            }
+            var skip = 'N'
+            for (var key in EDims) {
+                if (Equals(EDims[key],Dimdata['geometry'])) {skip = 'Y';break}
+            }
+            if (skip=='N') {Push(Dimadds,Dimdata)}
+        }
+    }
+    Console('Dimadds:')
+    for (var D in Dimadds) {Console(D + ': ' + Dimadds[D])}
+    return {
+        'result':$feature.Dimensions_Tools_Rules_1,
+        'edit':[
+            {
+            'className':'Dimensions',
+            'adds':Dimadds
+            }
+        ]
+    }
+}",,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Dimensions Tools 2,,CALCULATION,,Dimensions_Tools_Rules_2,True,False,False,True,//Placeholder,,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Dimensions Tools 3,-,CALCULATION,,Dimensions_Tools_Rules_3,True,False,False,True,//Placeholder,,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Transmedia Tools 1,Offset Cables,CALCULATION,,Transmedia_Tools_Rules_1,True,False,False,True,"var CableOffs = FeatureSetByName($datastore,'Transmedia_Offset',['ObjectID','Related_OID','Related_GUID','Offset_Increment'],true)
+var Cablefields = ['OBJECTID','Cable_GUID','Work_Order_ID','Project_Name','Calculated_Length','Slack_Loops','Slack_Length','Adjusted_Length','Order_Length','Route_ID','Cable_ID','SUBTYPE_CODE',
+                   'Total_Fibers','Cable_Series','Cable_Type','Cable_Structure','Network_Type','Transmedia_Type','Environment','Toneable','Nominal_OD','Limitting_OD','Limitting_Feature',
+                   'Subunits_Count','Subunits_Arrangement','Active_Fibers','Active_Starts','Active_Ends','Spare_Fibers','Dead_Fibers','Fiber_Count','PON_Count','Attenuation',
+                   'From_Transmedia','To_Transmedia','From_Splice_Closure','To_Splice_Closure','From_Equipment','To_Equipment','From_Structure','To_Structure',
+                   'PAMs','SLAMs','Alignments','Offset_Side','Offset_Distance','Offset_Increment','Drop_Access','DropDist_to_Acc','DropDist_to_NID']
+var Cables = FeatureSetByName($datastore,'Transmedia',Cablefields,true)
+var Helpers = FeatureSetByName($datastore,'OffsetHelper',['ObjectID','Related_OID','Related_GUID','Offset_Increment'],true)
+
+var ERRORS = []
+
+
+//OFFSET CABLES
+if ($feature.Transmedia_Tools=='Offset_Cables') {
+
+  var ECableOffs = {}
+  for (var CO in CableOffs) {
+    ECableOffs[Text(CO.ObjectID)] = [Text(CO.Related_GUID),Round(CO.Offset_Increment,2)]
+  }
+
+  var CableErrors = []
+  var Offadds = []
+  var Cableupdates = []
+  for (var C in Cables) {
+    if (C.Network_Type=='Drop') {continue}
+    if (C.Network_Type=='Distribution - Tail') {if (Includes([10,25],C.Adjusted_Length)) {continue}}
+    var COID = C.ObjectID; var CGUID = C.Cable_GUID; var CID = C.Cable_ID
+    var OS = C.Offset_Side; var OD = Number(C.Offset_Distance); var OI = Round(C.Offset_Increment,2)
+    Console('COID: '+COID+' / CID: '+CID)
+    if (CGUID==null) {
+      Console('No Cable_GUID assigned.')
+      CGUID = Upper(Guid())
+      Push(Cableupdates,{'ObjectID':COID,'attributes':{'Cable_GUID':CGUID}})
+    }
+
+    //Pull Geometry from OffsetHelper
+    var Hsql = ""Related_GUID = \'""+Text(CGUID)+""\' AND Offset_Increment = ""+Number(OI)+""""
+    Console('Hsql: ' + Hsql)
+    var CHelpers = Filter(Helpers,Hsql)
+    if (Count(CHelpers)>1) {
+      Console('Not all OffsetHelpers are merged! (One per cable/conduit)')
+      return {'errorMessage':COID+': Not all OffsetHelpers are merged! (One per cable/conduit)'}
+    }
+    if (Count(CHelpers)==0) {
+      Console('No OffsetHelper with matching Related_GUID AND Offset_Increment!')
+      Push(CableErrors,COID)
+      continue
+    }
+    var CHelper = First(CHelpers)
+    var OffGeo = Geometry(CHelper)
+
+    var dupe = 'N'
+    for (var E in ECableOffs) {if (ECableOffs[E][0]==CGUID && ECableOffs[E][1]==Round(OI,2)) {dupe='Y';break}}
+    if (dupe=='Y') {continue}
+    
+    //Set up data to be captured for creating new offset display cable features.
+    var OffData = {'attributes':{'Related_OID':'','Related_GUID':'','Work_Order_ID':'','Project_Name':'','Calculated_Length':'','Slack_Loops':'','Slack_Length':'','Adjusted_Length':'','Order_Length':'','Route_ID':'','Cable_ID':'','SUBTYPE_CODE':'',
+                                  'Total_Fibers':'','Cable_Series':'','Cable_Type':'','Cable_Structure':'','Network_Type':'','Transmedia_Type':'','Environment':'','Toneable':'','Nominal_OD':'','Limitting_OD':'','Limitting_Feature':'',
+                                  'Subunits_Count':'','Subunits_Arrangement':'','Active_Fibers':'','Active_Starts':'','Active_Ends':'','Spare_Fibers':'','Dead_Fibers':'','Fiber_Count':'','PON_Count':'','Attenuation':'',
+                                  'From_Transmedia':'','To_Transmedia':'','From_Splice_Closure':'','To_Splice_Closure':'','From_Equipment':'','To_Equipment':'','From_Structure':'','To_Structure':'',
+                                  'PAMs':'','SLAMs':'','Alignments':'','Offset_Side':'','Offset_Distance':'','Offset_Increment':'','Drop_Access':'','DropDist_to_Acc':'','DropDist_to_NID':'','Cable_GUID':''},
+                    'geometry':OffGeo}
+    for (var Cablefield in Cablefields) {
+      var field = Text(Cablefields[Cablefield])
+      if (field == 'OBJECTID') {OffData['attributes']['Related_OID'] = Number(C[field]); continue}
+      if (field == 'Cable_GUID') {OffData['attributes']['Related_GUID'] = CGUID}
+      else {OffData['attributes'][field] = C[field]}
+    }
+    Push(Offadds,OffData)
+  }
+
+  if (Count(CableErrors)>0) {Push(ERRORS,'No OffsetHelper with matching Related_GUID AND Offset_Increment!: '+CableErrors)}
+
+  Console('\nCableupdates: [' + Count(Cableupdates) + ']')
+  for (var key in Cableupdates) {Console(key + ':' + Cableupdates[key] + '\n')}
+  Console('\nOffadds: [' + Count(Offadds) + ']')
+  for (var key in Offadds) {Console(key + ':' + Offadds[key]['attributes'] + '\n')}
+
+  return {
+    'result':iif(Count(ERRORS)!=0,iif(Count(Text(ERRORS))>5000,Left(Text(ERRORS),4997)+'...',ERRORS),'No Errors'),
+    'edit':[
+      {'className':'Transmedia', 
+      'updates':Cableupdates},
+      {'className':'Transmedia_Offset', 
+      'adds':Offadds}
+    ]
+  }
+}",,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Transmedia Tools 2,Drop Stubs; Create Drops,CALCULATION,,Transmedia_Tools_Rules_2,True,False,False,True,"var MSTsql = ""EQUIPMENT_TYPE = 'MST'""
+var MSTs = Filter(FeatureSetByName($datastore,'Equipment',['ObjectID','EQUIPMENT_TYPE','EQUIP_ID','STRUCTURE_UNID'],true),MSTsql)
+var Splices = FeatureSetByName($datastore,'Splice_Closure',['ObjectID','SPLICE_CLOSURE_TYPE','SPLCL_ID','STRUCTURE_UNID'],true)
+var SpliceSAsql = ""TYPE = 'Serving Area Cluster'""
+var EQSAsql = ""TYPE = 'Serving Area'""
+var SAs = FeatureSetByName($datastore,'Serving_Area',['ObjectID','ASSOC_EQUIPMENT','ASSOC_SPLICE','TOTAL_DEMAND_POINTS','ADD_LIST','TYPE'],true)
+var SAsSplice = Filter(SAs,SpliceSAsql)
+var SAsEQ = Filter(SAs,EQSAsql)
+var DPs = FeatureSetByName($datastore,'Demand_Point',['ObjectID','ADDRESS'],true)
+var UGSTRs = FeatureSetByName($datastore,'UG_Structure',['ObjectID','SUBTYPE_CODE','STR_ID'],true)
+var STRsql = ""SUBTYPE_CODE IN (2,3,4,5,10,12,13,14,15)""
+var STRs = Filter(UGSTRs,STRsql)
+var Cables = FeatureSetByName($datastore,'Transmedia',['ObjectID','SUBTYPE_CODE','Transmedia_Type','Network_Type','Total_Fibers','From_Structure','To_Structure','From_Equipment','To_Equipment','From_Splice_Closure','To_Splice_Closure'],true)
+var Drops = Filter(Cables,""Network_Type = 'Drop'"")
+var Spans = FeatureSetByName($datastore,'Span',['ObjectID','SPAN_ID','CALCULATED_LENGTH','From_Span','To_Span','From_Structure','To_Structure','From_Equipment','To_Equipment','From_Splice_Closure','To_Splice_Closure'],true)
+function ConvArr(fieldval) {
+  var Arr = iif(Find('\""',fieldval)>=0,
+                Split(Replace(Replace(Replace(fieldval,'\""',''),'[',''),']',''),','),
+                Split(Replace(Replace(fieldval,'[',''),']',''),','))
+  Arr = iif(Text(Arr)=='[""""]',[],Arr)
+  return Arr
+}
+var SpanSpans = Dictionary()
+var SpanSTRs = Dictionary()
+var SpanEQs = Dictionary()
+var SpanSCs = Dictionary()
+var SpanLens = Dictionary()
+var SpanPaths = Dictionary()
+var SpanREVPaths = Dictionary()
+for (var Span in Spans) {
+    var SpanPath = []
+    var pnts = Geometry(Span)['paths'][0]
+    for (var pnt in pnts) {Push(SpanPath,[pnts[pnt]['x'],pnts[pnt]['y'],0,null])}
+    var FS = ConvArr(Span.From_Span);var FSlist = iif(Text(FS)=='[""""]',[],FS)
+    var TS = ConvArr(Span.To_Span);var TSlist = iif(Text(TS)=='[""""]',[],TS)
+    var FStr = ConvArr(Span.From_Structure);var FSTRlist = iif(Text(FStr)=='[""""]',[],FStr)
+    var TStr = ConvArr(Span.To_Structure);var TSTRlist = iif(Text(TStr)=='[""""]',[],TStr)
+    var FEQ = ConvArr(Span.From_Equipment);var FEQlist = iif(Text(FEQ)=='[""""]',[],FEQ)
+    var TEQ = ConvArr(Span.To_Equipment);var TEQlist = iif(Text(TEQ)=='[""""]',[],TEQ)
+    var FSP = ConvArr(Span.From_Splice_Closure);var FSPlist = iif(Text(FSP)=='[""""]',[],FSP)
+    var TSP = ConvArr(Span.To_Splice_Closure);var TSPlist = iif(Text(TSP)=='[""""]',[],TSP)
+    SpanPaths[Text(Span.ObjectID)] = SpanPath
+    SpanREVPaths[Text(Span.ObjectID)] = Reverse(SpanPath)
+    SpanSpans[Text(Span.ObjectID)] = [FSlist,TSlist]
+    SpanSTRs[Text(Span.ObjectID)] = [FSTRlist,TSTRlist]
+    SpanEQs[Text(Span.ObjectID)] = [FEQlist,TEQlist]
+    SpanSCs[Text(Span.ObjectID)] = [FSPlist,TSPlist]
+    SpanLens[Text(Span.ObjectID)] = Span.CALCULATED_LENGTH
+}
+var ERRORS = []
+//DROP STUBS
+if ($feature.Transmedia_Tools == 'Create_Stubs') {
+    var DPMiss = []
+    var Stubadds = []
+    for (var DP in DPs) {
+        var DPDrops = Intersects(Drops,Geometry(DP))
+        if (Count(DPDrops) != 0) {
+            Console('DP ' + DP.ObjectID + ' already has a drop.')
+            continue
+        }
+        var DPX = Geometry(DP)['x']
+        var DPY = Geometry(DP)['y']
+        Console('DP OID: ' + DP.ObjectID + ' // ' + DP.Address)
+        var StubData = {'attributes':{'SUBTYPE_CODE':12,'Environment':'','Cable_GUID':Guid()},
+                        'geometry':{'hasZ':true,'hasM':true,'paths':[],'spatialReference':{'wkid':4326}}}
+        var StubPath = []
+        var NearSTR = null
+        var NearDist = 300
+        var DPBuff = BufferGeodetic(DP,NearDist,'feet')
+        var intSTRs = Contains(DPBuff,STRs)
+        for (var intSTR in intSTRs) {
+            var Dist = DistanceGeodetic(Point(Geometry(DP)),Point(Geometry(intSTR)))
+            if (Dist < NearDist) {NearDist = Dist; NearSTR = intSTR.ObjectID}
+            Console('    ' + intSTR.ObjectID + ' - ' + Dist + ' (' + Round(NearDist) + '\' to ' + NearSTR + ')')
+        }
+        if (NearSTR==null) {
+            Push(DPMiss,DP.ObjectID)
+            continue
+        }
+        var NearSTRsql = ""ObjectID = @NearSTR""
+        var Nearest = First(Filter(intSTRs,NearSTRsql))
+        var NearestX = Geometry(Nearest)['x']
+        var NearestY = Geometry(Nearest)['y']
+        Push(StubPath,[NearestX,NearestY,0,null])
+        Push(StubPath,[DPX,DPY,0,null])
+        Push(StubData['geometry']['paths'],StubPath)
+        StubData['geometry'] = Polyline(StubData['geometry'])
+        StubData['attributes']['Environment'] = iif(Nearest.SUBTYPE_CODE==15,'Aerial','Underground')
+        Push(Stubadds,StubData)
+    }
+    if (Count(DPMiss)!=0) {Push(ERRORS,'Manually draw stubs to these DP: ' + DPMiss)}
+    Console(Stubadds)
+    return {
+        'result':iif(Count(ERRORS)!=0,ERRORS,'No Errors'),
+        'edit':[
+            {
+            'className':'Transmedia', 
+            'adds':Stubadds
+            }      
+        ]
+    }
+}
+//CREATE DROPS
+if ($feature.Transmedia_Tools == 'Create_Drops') {
+    var Dropupdates = []
+    var StubsPath = {}
+    var StubsbyAcc = {}
+    var MaxDropLen = 1250
+    for (var D in Drops) {
+        var StubPath = []
+        var StartX = Geometry(D)['paths'][0][0]['x']
+        var StartY = Geometry(D)['paths'][0][0]['y']
+        var EndX = Geometry(D)['paths'][-1][-1]['x']
+        var EndY = Geometry(D)['paths'][-1][-1]['y']
+        Push(StubPath,[StartX,StartY,0,null])
+        Push(StubPath,[EndX,EndY,0,null])
+        var DropAcc = ConvArr(D.From_Structure)
+        var intSA = First(Intersects(Geometry(D)['paths'][-1][-1],SAsEQ))
+        var DropEQ = First(Intersects(intSA,MSTs)).ObjectID
+        var FSplice = ConvArr(D.From_Splice_Closure)
+        var FEQ = ConvArr(D.From_Equipment)
+        if (Includes(FSplice,DropEQ) || Includes(FEQ,DropEQ)) {continue}
+        StubsPath[Text(D.ObjectID)] = StubPath
+        if (!HasKey(StubsbyAcc,Text(DropAcc))) {
+            StubsbyAcc[Text(DropAcc)] = []
+            Push(StubsbyAcc[Text(DropAcc)],Text(D.ObjectID))
+        }
+        else {
+            Push(StubsbyAcc[Text(DropAcc)],Text(D.ObjectID))
+        }
+    }
+    Console('StubsbyAcc:')
+    //for (var key in StubsbyAcc) {Console(key + ':' + StubsbyAcc[key])}
+    var DropsbySA = Dictionary()
+    var HHbySA = Dictionary()
+    for (var SAEQ in SAsEQ){
+        var intEQ = First(Contains(SAEQ,MSTs))
+        DropsbySA[Text(SAEQ.ObjectID)] = []
+        var intDP = Contains(SAEQ,DPs)
+        var intDrops = Intersects(SAEQ,Drops)
+        for (var D in intDrops) {
+            if (Count(Intersects(Geometry(D)['paths'][-1][-1],intDP))>0) {Push(DropsbySA[Text(SAEQ.ObjectID)],Text(D.ObjectID))}
+        }
+        var SAHH = []
+        if (intEQ!=null) {
+          var intSTRs = Intersects(intEQ,UGSTRs)
+          for (var S in intSTRs) {Push(SAHH,Text(S.ObjectID))}
+        }
+        HHbySA[Text(SAEQ.ObjectID)] = Text(SAHH)
+    }
+    Console('\nDropsbySA:')
+    for (var key in DropsbySA) {Console(key + ':' + DropsbySA[key])}
+    Console('\nHHbySA:')
+    //for (var key in HHbySA) {Console(key + ':' + HHbySA[key])}
+    Console('\nBEGIN PROCESSING\n')
+    var CableErrors = []
+    for (var SAEQ in SAsEQ) {
+        var DropUpdateList = []
+        var SAHH = HHbySA[Text(SAEQ.ObjectID)]
+        var intEQ = First(Contains(SAEQ,MSTs))
+        var SADrops = DropsbySA[Text(SAEQ.ObjectID)]
+        if (Count(SADrops)==0) {
+            Console('SA OID: ' + SAEQ.ObjectID + ' has no drop stubs.')
+            Console('\n------------------------------<NEXT SA>------------------------------\n')
+            continue
+        }
+        //Find any Drops at the SAHH and check those off the list to find routes for.
+        var SADropsql = ""ObjectID IN (""
+        var SADropsqllist = []
+        for (var D in SADrops) {Push(SADropsqllist,SADrops[D])}
+        SADropsql += Concatenate(SADropsqllist,', ') + ')'
+        //Console('SQL: ' + SADropsql)
+        var DropStubs = Filter(Drops,SADropsql)
+        for (var D in DropStubs) {if (Text(ConvArr(D.From_Structure))==Text(SAHH)) {Push(DropUpdateList,Text(D.ObjectID))}}
+        Console('>----')
+        Console('SA OID: ' + SAEQ.ObjectID + ' looking for (' + Count(SADrops) + ') drops: ' + SADrops)
+        Console('SA served out of HH ' + SAHH + ' from ' + intEQ.EQUIP_ID + ' (' + intEQ.ObjectID + ')')
+        Console('Drops directly off EQ: ' + DropUpdateList)
+        Console('>-----------------')
+        //Find Initial spans (those at HHbySA)
+        var Initsql = ""From_Structure = \'"" + SAHH  + ""\' OR To_Structure = \'"" + SAHH + ""\'""
+        var InitSpans = Filter(Intersects(SAEQ,Spans),Initsql)
+        Console(Initsql)
+        var DRs = {}
+        var DRsbyDrop = {}
+        var Nexts = []
+        var NextHHs = []
+        var index = 0
+        for (var InitSpan in InitSpans) {
+            var SpanOID = Text(InitSpan.ObjectID)
+            var FSTR = SpanSTRs[Text(SpanOID)][0]
+            var TSTR = SpanSTRs[Text(SpanOID)][1]
+            var FSpan = SpanSpans[Text(SpanOID)][0]
+            var TSpan = SpanSpans[Text(SpanOID)][1]
+            var FEQ = SpanEQs[Text(SpanOID)][0]
+            var TEQ = SpanEQs[Text(SpanOID)][1]
+            var MSGs = []
+            //Determine directionality
+            var Dir = iif(Text(FSTR)==Text(SAHH),'N','R')
+            //Determine Next Spans and create their routes
+            var NextSpans = iif(Dir=='N',TSpan,FSpan)
+            var NextEQ = iif(Dir=='N',TEQ,FEQ)
+            DRs[Text(SpanOID)] = []
+            Push(DRs[Text(SpanOID)],[SpanOID,Dir])
+            for (var NextSpan in NextSpans) {
+                DRs[Text(NextSpans[NextSpan])] = []
+                for (var item in DRs[Text(SpanOID)]) {
+                    Push(DRs[Text(NextSpans[NextSpan])],DRs[Text(SpanOID)][item])
+                }
+                //if (Count(NextEQ)>0 && !Includes(NextEQ,Text(intEQ.ObjectID))) {continue}
+                Push(DRs[Text(NextSpans[NextSpan])],[Text(NextSpans[NextSpan]),'TBD'])
+                Push(Nexts,NextSpans[NextSpan])
+            }
+            //Determine if the Span leads to a drop access.
+            var NextHH = iif(Dir=='N',TSTR,FSTR)
+            Push(NextHHs,iif(Dir=='N',TSTR,FSTR))
+            if (HasKey(StubsbyAcc,Text(NextHH))) {
+                var DropsatAcc = StubsbyAcc[Text(NextHH)]
+                Push(MSGs,'    Span ' + SpanOID + ' leads to HH, serving drops: ' + DropsatAcc)
+                Push(MSGs,'    Capturing route for drops in this SA:')
+                for (var DropatAcc in DropsatAcc) {
+                    var DropOID = DropsatAcc[DropatAcc]
+                    if (Includes(SADrops,DropOID)) {
+                        Push(DropUpdateList,DropOID)
+                        DRsbyDrop[Text(DropOID)] = DRs[Text(SpanOID)]
+                        Push(MSGs,'    ' + DropOID + ': ' + DRsbyDrop[Text(DropOID)])
+                    }
+                }
+            }
+            //Console('    Drop update routes:\n    ' + DRsbyDrop)
+            Console('|    Index: ' + index)
+            Console('|    Span OID: ' + SpanOID + ' [' + Dir + ']')
+            Console('|    Next Spans: ' + Nexts)
+            Console('|    Next HH: ' + NextHH)
+            for (var MSG in MSGs) {Console('|  '+MSGs[MSG])}
+            Console('|    Drop Routes found for: ' + DropUpdateList)
+            //Console('|    Drop Route: ' + DRs[Text(SpanOID)])
+            index += 1
+            Console('\n    ---------------<Next Initial Span>---------------\n')
+        }
+        //If not all drop routes have been accoutned for, then jump into iterative loop and 
+        //establish initial variables and next spans to evaluate.
+        if (Count(DropUpdateList) != Count(SADrops)) {
+            for (var i = 0;i < 10;i++) {
+                if (Count(Nexts) == 0) {
+                    Console('        No more Spans to evaluate, but (' + (Count(SADrops)-Count(DropUpdateList)) + ') more Drops.')
+                    for (var D in SADrops) {
+                        if (!Includes(DropUpdateList,SADrops[D])) {
+                            Console('        Adding Drop ' + SADrops[D] + ' to list of errors.')
+                            Push(CableErrors,SADrops[D])
+                        }
+                    }
+                    break
+                }
+                if (Count(DropUpdateList) == Count(SADrops)) {
+                    Console('    >    All drops in SA accounted for!')
+                    break
+                }
+                var IterSpansql = ""ObjectID IN (""
+                var IterSpansqllist = []
+                for (var Next in Nexts) {Push(IterSpansqllist,Nexts[Next])}
+                IterSpansql += Concatenate(IterSpansqllist,', ') + ')'
+                //Console('        SQL: ' + IterSpansql)
+                var IterSpans = Filter(Spans,IterSpansql)         
+                var Nexts = []
+                Console('    >    Need to look further for drop routes...')
+                Console('    >    Current iteration: i = ' + i + '\n')
+                //Iterate through each of the next spans along the routes.
+                for (var IterSpan in Iterspans) {
+                    var SpanOID = Text(IterSpan.ObjectID)
+                    var FSTR = SpanSTRs[Text(SpanOID)][0]
+                    var TSTR = SpanSTRs[Text(SpanOID)][1]
+                    var FSpan = SpanSpans[Text(SpanOID)][0]
+                    var TSpan = SpanSpans[Text(SpanOID)][1]
+                    var FEQ = SpanEQs[Text(SpanOID)][0]
+                    var TEQ = SpanEQs[Text(SpanOID)][1]
+                    var MSGs = []
+                    //Determine directionality
+                    var Dir = iif(Find(Text(FSTR),Text(NextHHs))>=0,'N','R')
+                    //Determine Next Spans and create their routes
+                    var NextSpans = iif(Dir=='N',TSpan,FSpan)
+                    var NextEQ = iif(Dir=='N',TEQ,FEQ)
+                    DRs[Text(SpanOID)][-1][1] = Dir
+                    for (var NextSpan in NextSpans) {
+                        DRs[Text(NextSpans[NextSpan])] = []
+                        for (var item in DRs[Text(SpanOID)]) {
+                            Push(DRs[Text(NextSpans[NextSpan])],DRs[Text(SpanOID)][item])
+                        }
+                        //if (Count(NextEQ)>0 && !Includes(NextEQ,Text(intEQ.ObjectID))) {continue}
+                        Push(DRs[Text(NextSpans[NextSpan])],[Text(NextSpans[NextSpan]),'TBD'])
+                        Push(Nexts,NextSpans[NextSpan])
+                    }
+                    //Determine if the Span leads to a drop access HH.
+                    var NextHH = iif(Dir=='N',TSTR,FSTR)
+                    Push(NextHHs,iif(Dir=='N',TSTR,FSTR))
+                    if (HasKey(StubsbyAcc,Text(NextHH))) {
+                        var DropsatAcc = StubsbyAcc[Text(NextHH)]
+                        Push(MSGs,'  |          Span ' + SpanOID + ' leads to HH, serving drops: ' + DropsatAcc)
+                        Push(MSGs,'  |          Capturing route for drops in this SA')
+                        for (var DropatAcc in DropsatAcc) {
+                            var DropOID = DropsatAcc[DropatAcc]
+                            if (Includes(SADrops,DropOID)) {
+                                Push(DropUpdateList,DropOID)
+                                DRsbyDrop[Text(DropOID)] = DRs[Text(SpanOID)]
+                                Push(MSGs,'  |          ' + DropOID + ': ' + DRsbyDrop[Text(DropOID)])
+                            }
+                        }
+                    }
+                    Console('|    |        Span OID: ' + SpanOID + ' [' + Dir + ']')
+                    Console('|    |        Next Spans: ' + Nexts)
+                    Console('|    |        Next HH: ' + NextHH)
+                    for (var MSG in MSGs) {Console('|  '+MSGs[MSG])}
+                    Console('|    |        Drop Routes found for: ' + DropUpdateList)
+                    //Console('|    |        Drop Route: ' + DRs[Text(SpanOID)])
+                    Console('\n            ----<Next Iterated Span>----\n')
+                }
+                Console('\n        -------<Next Iteration>-------\n')
+            }
+        }
+        //Build drop route geometry updates from DRsbyDrop dictionary items.
+        Console('\nDRsbyDrop:')
+        for (var key in DRsbyDrop) {Console(key + ':' + DRsbyDrop[key])}
+        for (var Drop_key in DRsbyDrop) {
+            var DropPath = []
+            var Stubpnts = StubsPath[Text(Drop_key)]
+            var Dropdata = {'ObjectID':Drop_key,
+                            'geometry':{'hasZ':true,'hasM':true,'paths':[],'spatialReference':{'wkid':4326}}}
+            var DRSpans = DRsbyDrop[Drop_key]
+            //Console('Establishing geometry updates for drop ' + Drop_key)
+            //Console('Drop route is made up of these Spans:\n' + DRSpans)
+            for (var DRSpan in DRSpans) {
+                var Spaninfo = DRSpans[DRSpan]
+                var Spanpnts = SpanPaths[Text(Spaninfo[0])]
+                var SpanREVpnts = SpanREVPaths[Text(Spaninfo[0])]
+                if (Spaninfo[1] == 'N') {
+                    for (var pnt in Spanpnts) {Push(DropPath,Spanpnts[pnt])}
+                }
+                else if (Spaninfo[1] == 'R') {
+                    for (var pnt in SpanREVpnts) {Push(DropPath,SpanREVpnts[pnt])}
+                }
+            }
+            for (var pnt in Stubpnts) {Push(DropPath,Stubpnts[pnt])}
+            var index = 0
+            for (var pnt in DropPath) {
+                if (index < Count(DropPath)-1) {
+                    if (Text(DropPath[index]) == Text(DropPath[index+1])) {
+                        Erase(DropPath,index+1)
+                    }
+                    else {
+                        index += 1
+                    }
+                }
+            }
+            Push(Dropdata['geometry']['paths'],DropPath)
+            Dropdata['geometry'] = Polyline(Dropdata['geometry'])
+            Push(Dropupdates,Dropdata)
+        }
+        Console('\n------------------------------<NEXT SA>------------------------------\n')
+    }
+    if (Count(CableErrors)>0) {Push(ERRORS,'These Drop Stubs weren\'t updated: ' + CableErrors)}
+    Console('\nDropupdates: [' + Count(Dropupdates) + ']')
+    for (var key in Dropupdates) {Console(key + ':' + Dropupdates[key])}
+    return {
+      'result':iif(Count(ERRORS)!=0,iif(Count(Text(ERRORS))>5000,Left(Text(ERRORS),4997)+'...',ERRORS),'No Errors'),
+      'edit':[  
+        {'className':'Transmedia', 
+        'updates':Dropupdates}      
+      ]
+    }
+}",,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Transmedia Tools 3,Create Distribution Cables and Long Tails; Create Slack,CALCULATION,,Transmedia_Tools_Rules_3,True,False,False,True,"var Cables = FeatureSetByName($datastore,'Transmedia',['ObjectID','Cable_ID','GlobalID','Comments','Environment','Cable_Series','Cable_Type','Toneable','Total_Fibers','Active_Fibers','Active_Starts','Active_Ends','Alignments',
+                                                       'To_Equipment','PON_Count','Fiber_Count','Network_Type','Transmedia_Type','Calculated_Length','To_Equipment','Cable_GUID','SUBTYPE_CODE'],true)
+var Dists = Filter(Cables,""Network_Type = 'Distribution' AND SUBTYPE_CODE <> 10"")
+var Tails = Filter(Cables,""SUBTYPE_CODE = 11"")
+var RHelpers = FeatureSetByName($datastore,'RoutingHelper',['*'],true)
+var RefGeos = Filter(RHelpers,""SUBTYPE_CODE = 5"")
+var AHelpers = FeatureSetByName($datastore,'AssignmentHelper',['*'],true)
+var Splices = FeatureSetByName($datastore,'Splice_Closure',['ObjectID','SUBTYPE_CODE','Total_Splices','Branch_Splices','PON_COUNT','Cables_IN','Cables_OUT','COMMENTS','ENVIRONMENT'],true)
+var NAPs = Filter(Splices,""SUBTYPE_CODE = 7"")
+var EQs = FeatureSetByName($datastore,'Equipment',['ObjectID','OUTPUT_PORTS','STRUCTURE_UNID','ENVIRONMENT','EQUIP_ID','EQUIP_GUID','PON_Count'],true)
+var FLs = Filter(EQs,""EQUIPMENT_TYPE = 'Future Loop'"")
+var STRs = FeatureSetByName($datastore,'UG_Structure',['ObjectID','SUBTYPE_CODE','STR_ID'],true)
+var SLs = FeatureSetByName($datastore,'Slack_Loop',['ObjectID','Cable_ID','Cable_GUID','SUBTYPE_CODE'],true)
+var Poles = Filter(FeatureSetByName($datastore,'Pole',['ObjectID','Pole_ID','Pole_GUID','Prop_HOA','Prop_Riser','SUBTYPE_CODE'],true),""SUBTYPE_CODE = 2"")
+var Spans = FeatureSetByName($datastore,'Span',['ObjectID','SUBTYPE_CODE'],true)
+var GraPts = FeatureSetByName($datastore,'Graphics_Point',['*'],true)
+var GraRisers = Filter(GraPts,""SUBTYPE_CODE IN (17)"")
+var ProjDets = First(FeatureSetByName($datastore,'Project_Details',['*'],true))
+var PFPLoc = iif(Find('TBD',ProjDets.FDA_Location)>=0,null,ProjDets.FDA_Location)
+if (ProjDets==null || PFPLoc==null) {return {'errorMessage':'Ensure Project_Details - FDA_Location field is populated correctly!'}}
+
+function ConvArr(fieldval) {
+  var Arr = iif(Find('\""',fieldval)>=0,
+                Split(Replace(Replace(Replace(fieldval,'\""',''),'[',''),']',''),','),
+                Split(Replace(Replace(fieldval,'[',''),']',''),','))
+  Arr = iif(Text(Arr)=='[""""]',[],Arr)
+  return Arr
+}
+
+var TailMAX = 1000
+function OrderLen(Geom,Env,OID) {
+  var Len = LengthGeodetic(Geom,'feet')
+  var Slack = Len*0.1
+  var LwS = Round(Len + Slack)
+  var OrderLen = iif(Env!='Aerial',10,10)
+  if (Text(Geom['paths'][0][0])!=Text(Geom['paths'][-1][-1])) {
+    for (var i=100; i<=1000; i+=100) {
+      if (Includes([600,700,800,900],i)) {continue}
+      if (LwS<=i) {OrderLen = i; break}
+    }
+  }
+  if (LwS>1000) {return {'errorMessage':'Tail with Route OID ' + OID + ' exceeds max of 1000\'!'}}
+  return OrderLen
+}
+
+var ERRORS = []
+
+//CREATE FLEXNAP DISTRIBUTION CABLES AND LONG TAILS
+if ($feature.Transmedia_Tools=='Create_Dist') {
+  var DSubTypes = {'ALTOS':{'Aerial':8,'Underground':8},
+                   'RPX':{'Aerial':6,'Underground':7},
+                   'SST Flat Dielectric Drop':{'Aerial':11,'Underground':11},
+                   'SST-Ribbon':{'Aerial':2,'Underground':3},
+                   'RocketRibbon':{'Aerial':4,'Underground':5}}
+
+  var RHelperupdates = []
+  var AHelperupdates = []
+  var Cableadds = []
+  var Cableupdates = []
+  var EQupdates = []
+  for (var A in AHelpers) {
+    var AOID = A.ObjectID; var RHOID = A.RouteID; var RGOID = A.RefGeometry; var ST = A.SUBTYPE_CODE  //IDs
+    var CS = A.Cable_Series; var Env = A.Environment; var TT = A.Transmedia_Type; var CT = A.Cable_Type; var CTone = A.Toneable; var CSt = A.Cable_Structure; var NT = A.Network_Type  //Cable Properties
+    var PONHigh = A.CountStart; var PONLow = A.CountEnd  //Active Counts
+    var FibHigh = A.FiberStart; var FibLow = A.FiberEnd  //Active Fibers
+    var Alloc = Split(A.Allocations,'\n')  //Fiber Allocations
+    Console('Assignment Poly: '+AOID+' || Relates to Route '+RHOID+' / RefGeo '+RGOID)
+    Console('  Cable Details:\n  CS: '+CS+'\n  Env: '+Env+'\n  TT: '+TT+'\n  CT: '+CT+'\n  CTone: '+CTone+'\n  CSt: '+CSt+'\n  NT: '+NT)
+    Console('\n  Allocations:')
+    for (var All in Alloc) {Console('  '+Alloc[All])}
+
+    //Set up data for new Cable
+    //Pull Geometry from Ref Geo RHelper
+    var Refsql = ""ObjectID = ""+Number(RGOID)+""""
+    var RGH = First(Filter(RefGeos,Refsql))
+    var Geom = Geometry(RGH)
+    //Generate GUID if new and other cable data and push updates to RouteHelpers and AssignmentHelpers
+    var CGUID = iif(A.Cable_GUID==null,Upper(Guid()),A.Cable_GUID)
+    var Dead = iif(FibLow==1,null,'A:1-'+Text(FibLow-1)+';')
+    var Active = 'PON'+PFPLoc+':'+Text(PONLow+'-'+PONHigh)
+    var Cts = Dead+Active
+    var TailLen = null
+    if (ST==4) {TailLen = OrderLen(Geom,Env,RHOID)}
+    var Order = iif(TailLen==null,null,Text(TailLen)+'\'')
+
+    var dupe = 'N'
+    var dupesql = ""Cable_GUID = @CGUID""
+    var dupes = Filter(Cables,dupesql)
+    var dupeOID = null; var CID = null
+    if (Count(dupes)>0) {
+      dupe='Y'
+      dupeOID = First(dupes).ObjectID
+      CID = First(dupes).Cable_ID
+    }
+
+    var Cabledata = {'attributes':{'SUBTYPE_CODE':DSubTypes[Text(CS)][Text(Env)],'Cable_ID':CID,'Cable_GUID':CGUID,'Adjusted_Length':TailLen,'Order_Length':Order,
+                                   'Total_Fibers':FibHigh,'Active_Fibers':Number(FibHigh-FibLow+1),'Active_Starts':Text([FibLow]),'Active_Ends':Text([FibHigh]),'Fiber_Count':Cts,'PON_Count':Active,
+                                   'Cable_Series':CS,'Environment':Env,'Transmedia_Type':TT,'Cable_Type':CT,'Toneable':CTone,'Cable_Structure':CSt,'Network_Type':NT},
+                     'geometry':Geom}
+    if (dupe=='Y') {Cabledata['ObjectID']=dupeOID}
+    //Console(Cabledata)
+    Push(iif(dupe=='N',Cableadds,Cableupdates),Cabledata)
+    if (dupe=='N') {
+      Push(RHelperupdates,{'ObjectID':RHOID,'attributes':{'Cable_GUID':CGUID,'Hide_Label':'Yes'}})
+      Push(RHelperupdates,{'ObjectID':RGOID,'attributes':{'Cable_GUID':CGUID,'Hide_Label':'Yes'}})
+      Push(AHelperupdates,{'ObjectID':AOID,'attributes':{'Cable_GUID':CGUID}})
+    }
+
+    if (ST!=4) {Console('\n--\\\n--NEXT ASSIGNMENT POLYGON--\n--/\n'); continue}
+    Console('\n  --ADDITIONAL PROCESSING FOR LONG TERMINAL TAILS--\n')
+    var EQOID = null; var EQID = null
+    for (var All in Alloc) {
+      if (Find('(DEAD)',Alloc[All])>=0 || Find('--',Alloc[All])>=0) {continue}
+      var Ass = Split(Replace(Replace(Alloc[All],')',''),'(',''),' ')
+      Console('  '+Ass)
+
+      Console('\n    EQUIPMENT:')
+      EQOID = Ass[-1]
+      var EQsql = ""ObjectID = ""+Number(EQOID)+""""
+      EQID = First(Filter(EQs,EQsql)).EQUIP_ID
+      iif(dupe=='N',Cableadds,Cableupdates)[-1]['attributes']['Cable_ID']=EQID
+      var EQdata = {'ObjectID':EQOID,'attributes':{'PON_COUNT':'PON'+PFPLoc+':'+Ass[0],'Stub_Length':TailLen}}
+      Console('    EQdata: '+EQdata)
+      Push(EQupdates,EQdata)
+
+      Console('\n  --\\\n  --NEXT ASSIGNMENT--\n  --/\n')
+    }
+    Console('\n--\\\n--NEXT ASSIGNMENT POLYGON--\n--/\n')
+  }
+
+  //if (Count(CableErrors)>0) {Push(ERRORS,'These MSTs\' Tails weren\'t created: ' + CableErrors)}
+  //if (Count(LenErrors)>0) {Push(ERRORS,'These MSTs will be >' + TailMAX + '\' from splice: ' + LenErrors)}
+
+  Console('\nRHelperupdates: [' + Count(RHelperupdates) + ']')
+  for (var key in RHelperupdates) {Console(key + ':' + RHelperupdates[key])}
+  Console('\nAHelperupdates: [' + Count(AHelperupdates) + ']')
+  for (var key in AHelperupdates) {Console(key + ':' + AHelperupdates[key])}
+  Console('\nEQupdates: [' + Count(EQupdates) + ']')
+  for (var key in EQupdates) {Console(key + ':' + EQupdates[key])}
+  Console('\nCableadds: [' + Count(Cableadds) + ']')
+  for (var key in Cableadds) {Console(key + ':' + Cableadds[key])}
+  Console('\nCableupdates: [' + Count(Cableupdates) + ']')
+  for (var key in Cableupdates) {Console(key + ':' + Cableupdates[key])}
+
+  Console('\nERRORS:\n' + ERRORS)
+
+  return {
+    'result':iif(Count(ERRORS)!=0,iif(Count(Text(ERRORS))>5000,Left(Text(ERRORS),4997)+'...',ERRORS),'No Errors'),
+    'edit':[  
+      {'className':'RoutingHelper', 
+      'updates':RHelperupdates},
+      {'className':'AssignmentHelper', 
+      'updates':AHelperupdates},
+      {'className':'Equipment', 
+      'updates':EQupdates},
+      {'className':'Transmedia', 
+      'adds':Cableadds},
+      {'className':'Transmedia', 
+      'updates':Cableupdates}
+    ]
+  }
+  Console('\n--\\\n--NEXT ASSIGNMENT POLYGON--\n--/\n')
+}
+
+//CREATE SLACK
+if ($feature.Transmedia_Tools=='Create_Slack') {
+  var RiserPoles = []
+  var Poleupdates = []
+  var Graadds = []
+  for (var P in Poles) {
+    var POID = P.ObjectID; var PGUID = P.Pole_GUID
+    var intUG = Intersects(P,Filter(Spans,""SUBTYPE_CODE = 2""))
+    var intOH = Intersects(P,Filter(Spans,""SUBTYPE_CODE = 3""))
+    if (Count(intUG)>0 && Count(intOH)>0) {
+      Push(RiserPoles,POID)
+      var Poledata = {'ObjectID':POID,'attributes':{'Prop_Riser':'Yes'}}
+      if (P.Prop_Riser!='Yes') {Push(Poleupdates,Poledata)}
+
+      var PPOA = 20
+      var HOA = iif(P.Prop_HOA==null,null,Replace(Replace(P.Prop_HOA,'\""',''),'\'',''))
+      if (HOA!=null) {if (Find('-',HOA)>=0) {PPOA = Ceil(Number(Split(HOA,'-')[0]) + Number(Split(HOA,'-')[1])/12)+3}}
+
+      var Map_Use = ['SCH','CD','DT']
+      for (var M in Map_Use) {
+        var MU = Map_Use[M]
+        Console(MU)
+        //Dupe check query and continue
+        var Esql = ""Related_GUID = \'""+Text(PGUID)+""\' AND Map_Use = @MU""
+        var ERisers = Filter(GraRisers,Esql)
+        if (Count(ERisers)>0) {continue}
+        var Gradata = {'attributes':{'SUBTYPE_CODE':17,'Related_GUID':PGUID,'Label1':Text(PPOA),'Map_Use':''},'geometry':Geometry(P)}
+        Gradata['attributes']['Map_Use'] = MU
+        Console(Gradata)
+        Push(Graadds,Gradata)
+      }
+    }
+  }
+
+  var incdist = 750
+  var SLadds = []
+  for (var D in Dists) {
+    var DOID = D.ObjectID; var DID = D.Cable_ID; var DGID = D.Cable_GUID; var DPts = Geometry(D)['paths'][0]
+    if (Count(Split(D.PON_Count,':'))<2) {return {'errorMessage':'Cable OID: '+DOID+' has improper PON_Count format.'}}
+    var DSeries = D.Cable_Series; var DType = D.Transmedia_Type; var DEnv = D.Environment; var DTone = D.Toneable
+    var DCt = D.Total_Fibers; var DPONs = Split(D.PON_Count,':')[1]
+    Console('OID: ' + DOID + ' - ' + DCt + 'F ' + DSeries + ' ' + DType + ' (' + DEnv + ')')
+    var DPONLow = null; var DPONHigh = null
+    if (Find('-',DPONs)>=0 && Count(Split(DPONs,'-'))==2) {
+      DPONLow = Number(Split(DPONs,'-')[0])
+      DPONHigh = Number(Split(DPONs,'-')[1])
+    }
+    var cumlen = 0; var intlen = 0; var slacklen = 0
+    for (var p=0; p<Count(DPts); p++) {
+      var Pt = DPts[p]
+      if (p!=0) {
+        var seglen = DistanceGeodetic(Pt,DPts[p-1],'feet')
+        cumlen += seglen; intlen += seglen
+      }
+      var intSTR = First(Intersects(Pt,STRs))
+      var intPole = iif(Count(RiserPoles)==0,null,First(Intersects(Pt,Filter(Poles,""ObjectID IN (""+Concatenate(RiserPoles,',')+"")""))))
+      var PPOA = 20
+      if (intPole!=null) {
+        var HOA = iif(intPole.Prop_HOA==null,null,Replace(Replace(intPole.Prop_HOA,'\""',''),'\'',''))
+        if (HOA!=null) {if (Find('-',HOA)>=0) {PPOA = Ceil(Number(Split(HOA,'-')[0]) + Number(Split(HOA,'-')[1])/12)+3}}
+      }
+      var PEnv = null
+      if (intSTR!=null) {PEnv = iif(intSTR.SUBTYPE_CODE==15,'Aerial','Underground')}
+      var intSPs = Intersects(Pt,Filter(Splices,""Cables_IN = @DGID And SUBTYPE_CODE <> 7""))
+      var intNAPs = Intersects(Pt,Filter(NAPs,""Cables_IN = @DGID""))
+      var intFLs = Intersects(Pt,FLs)
+      var Esql = ""Cable_GUID = \'""+Text(DGID)+""\' AND SUBTYPE_CODE = 2""
+      Console('  Pt ' + p + ' / Cum. Length: ' + Ceil(cumlen) + '\' / Int. Length: ' + Ceil(intlen) + '\'')
+      Console('    Splices: ' + Count(intSPs) + ' / NAPs: ' + Count(intNAPs))
+      if (p==0) {
+        //Initial slack
+        var SLen = iif(Includes(['Fiber Optic Cable','FlexNAP Cable'],DType),50,iif(DTone=='No',15,25))
+        var SLdata = {'attributes':{'Cable_ID':DID,'Cable_GUID':Text(DGID),'Length_Adjustment':SLen,'SUBTYPE_CODE':2,'Environment':PEnv},'geometry':Pt}
+        var ESLs = Intersects(Pt,Filter(SLs,Esql))
+        if (Count(ESLs)==0) {Push(SLadds,SLdata)}; cumlen += SLen; slacklen += SLen
+        if (DType=='FlexNAP Preterm Lateral') {
+          var x0 = Pt['x']; var x1 = DPts[p+1]['x']
+          var y0 = Pt['y']; var y1 = DPts[p+1]['y']
+          var midpt = Point({'x':(x0+x1)/2,'y':(y0+y1)/2,'z':0,'spatialReference':{'wkid':4326}})
+          //x1 = midpt['x']; y1 = midpt['y']
+          //var qtrpt = Point({'x':(x0+x1)/2,'y':(y0+y1)/2,'z':0,'spatialReference':{'wkid':4326}})
+          var segEnv = iif(Count(Intersects(midpt,Filter(Spans,""SUBTYPE_CODE = 2"")))>0,'Underground','Aerial')
+          //Slack at first pole if aerial preterm lateral
+          if (segEnv=='Aerial') {
+            SLdata = {'attributes':{'Cable_ID':DID,'Cable_GUID':Text(DGID),'Length_Adjustment':50,'SUBTYPE_CODE':2,'Environment':PEnv},'geometry':Pt}
+            var ESLs = Intersects(Pt,Filter(SLs,Esql))
+            if (Count(ESLs)==0) {Push(SLadds,SLdata)}; cumlen += 50; slacklen += 50
+          }
+          //Slack at first HH if underground preterm lateral
+          if (segEnv=='Underground') {
+            SLdata = {'attributes':{'Cable_ID':DID,'Cable_GUID':Text(DGID),'Length_Adjustment':50,'SUBTYPE_CODE':2,'Environment':PEnv},'geometry':Pt}
+            var ESLs = Intersects(Pt,Filter(SLs,Esql))
+            if (Count(ESLs)==0) {Push(SLadds,SLdata)}; cumlen += 50; slacklen += 50
+          }
+          //Riser down from start
+          if (segEnv=='Underground' && intPole!=null) {
+            SLen = PPOA
+            SLdata = {'attributes':{'Cable_ID':DID,'Cable_GUID':Text(DGID),'Length_Adjustment':SLen,'SUBTYPE_CODE':4,'Environment':PEnv},'geometry':Pt}
+            var ESLs = Intersects(Pt,Filter(SLs,""Cable_GUID = \'""+Text(DGID)+""\' AND SUBTYPE_CODE = 4""))
+            if (Count(ESLs)==0) {Push(SLadds,SLdata)}; cumlen += SLen; slacklen += SLen
+          }
+        }
+      }
+      if (p>0 && p<Count(DPts)-1) {
+        var x0 = Pt['x']; var x1 = DPts[p+1]['x']; var x2 = DPts[p-1]['x']
+        var y0 = Pt['y']; var y1 = DPts[p+1]['y']; var y2 = DPts[p-1]['y']
+        var nmidpt = Point({'x':(x0+x1)/2,'y':(y0+y1)/2,'z':0,'spatialReference':{'wkid':4326}})
+        var pmidpt = Point({'x':(x0+x2)/2,'y':(y0+y2)/2,'z':0,'spatialReference':{'wkid':4326}})
+        var nsegEnv = iif(Count(Intersects(nmidpt,Filter(Spans,""SUBTYPE_CODE = 2"")))>0,'Underground','Aerial')
+        var psegEnv = iif(Count(Intersects(pmidpt,Filter(Spans,""SUBTYPE_CODE = 2"")))>0,'Underground','Aerial')
+        //750 foot incrementally spaced
+        if (intlen>=incdist && (Ceil(D.Calculated_Length)-cumlen-slacklen)>=incdist/3) {
+          if (intSTR==null) {continue}
+          if (!Includes([2,3,4,10,12,13,14,15],intSTR.SUBTYPE_CODE)) {continue}
+          var incSLen = iif(PEnv=='Underground',20,50)
+          SLdata = {'attributes':{'Cable_ID':DID,'Cable_GUID':Text(DGID),'Length_Adjustment':incSLen,'SUBTYPE_CODE':2,'Environment':PEnv},'geometry':Pt}
+          var ESLs = Intersects(Pt,Filter(SLs,Esql))
+          if (Count(ESLs)==0) {Push(SLadds,SLdata)}; cumlen += incSLen; slacklen += incSLen; intlen = 0
+        }
+        //Riser up/down
+        if (intPole!=null && nsegEnv!=psegEnv) {
+          SLen = PPOA
+          SLdata = {'attributes':{'Cable_ID':DID,'Cable_GUID':Text(DGID),'Length_Adjustment':SLen,'SUBTYPE_CODE':4,'Environment':PEnv},'geometry':Pt}
+          var ESLs = Intersects(Pt,Filter(SLs,""Cable_GUID = \'""+Text(DGID)+""\' AND SUBTYPE_CODE = 4""))
+          if (Count(ESLs)==0) {Push(SLadds,SLdata)}; cumlen += SLen; slacklen += SLen
+        }
+        //At Future Loops
+        if (Count(intFLs)>0 && (DPONLow!=null && DPONHigh!=null)) {
+          for (var FL in intFLs) {
+            var FLPONs = Split(FL.PON_Count,':')[1]
+            var FLPONLow = null; var FLPONHigh = null
+            if (Find('-',DPONs)>=0 && Count(Split(FLPONs,'-'))==2) {
+              FLPONLow = Number(Split(FLPONs,'-')[0])
+              FLPONHigh = Number(Split(FLPONs,'-')[1])
+            }
+            if (FLPONLow==null || FLPONHigh==null) {continue}
+            if ((FLPONLow>=DPONLow) && (FLPONHigh<=DPONHigh)) {
+              SLdata = {'attributes':{'Cable_ID':DID,'Cable_GUID':Text(DGID),'Length_Adjustment':100,'SUBTYPE_CODE':2,'Environment':PEnv,
+                                      'Fibers_Reserved':Ceil(Number(FL.OUTPUT_PORTS)/12)*12,'PON_Counts':FL.PON_Count,'Equipment_ID':FL.EQUIP_ID,'Equipment_GUID':FL.EQUIP_GUID},
+                        'geometry':Pt}
+              var ESLs = Intersects(Pt,Filter(SLs,Esql))
+              if (Count(ESLs)==0) {Push(SLadds,SLdata)}
+              cumlen += 100; slacklen += 100; intlen = 0
+            }
+          }
+        }
+        //At field splices
+        if (Count(intSPs)>0) {
+          SLdata = {'attributes':{'Cable_ID':DID,'Cable_GUID':Text(DGID),'Length_Adjustment':50,'SUBTYPE_CODE':2,'Environment':PEnv},'geometry':Pt}
+          var ESLs = Intersects(Pt,Filter(SLs,Esql))
+          if (Count(ESLs)==0) {Push(SLadds,SLdata);Push(SLadds,SLdata)}; cumlen += 100; slacklen += 100; intlen = 0
+        }
+        //At Buried locations with multiple NAPs
+        if (Count(intNAPs)>1 && PEnv=='Underground') {
+          var UniNAPs = []
+          for (var iNAP in intNAPs) {Push(UniNAPs,Text(iNAP.Cables_OUT))}
+          SLdata = {'attributes':{'Cable_ID':DID,'Cable_GUID':Text(DGID),'Length_Adjustment':20,'SUBTYPE_CODE':2,'Environment':PEnv},'geometry':Pt}
+          var ESLs = Intersects(Pt,Filter(SLs,Esql))
+          if (Count(ESLs)==0) {for (var i=0;i<Count(Distinct(UniNAPs))-1;i++) {
+            Push(SLadds,SLdata)
+          }}
+          cumlen += (Count(Distinct(UniNAPs))-1)*20; slacklen += (Count(Distinct(UniNAPs))-1)*20; intlen = 0
+        }
+      }
+      if (p==Count(DPts)-1) {
+        var x0 = Pt['x']; var x2 = DPts[p-1]['x']
+        var y0 = Pt['y']; var y2 = DPts[p-1]['y']
+        var pmidpt = Point({'x':(x0+x2)/2,'y':(y0+y2)/2,'z':0,'spatialReference':{'wkid':4326}})
+        var psegEnv = iif(Count(Intersects(pmidpt,Filter(Spans,""SUBTYPE_CODE = 2"")))>0,'Underground','Aerial')
+        //Riser up at end
+        if (intPole!=null && psegEnv=='Underground') {
+          var SLen = PPOA
+          SLdata = {'attributes':{'Cable_ID':DID,'Cable_GUID':Text(DGID),'Length_Adjustment':SLen,'SUBTYPE_CODE':4,'Environment':PEnv},'geometry':Pt}
+          var ESLs = Intersects(Pt,Filter(SLs,""Cable_GUID = \'""+Text(DGID)+""\' AND SUBTYPE_CODE = 4""))
+          if (Count(ESLs)==0) {Push(SLadds,SLdata)}; cumlen += SLen; slacklen += SLen
+        }
+        //Slack at end
+        var SLen = iif(DTone=='No',15,25)
+        var SLdata = {'attributes':{'Cable_ID':DID,'Cable_GUID':Text(DGID),'Length_Adjustment':SLen,'SUBTYPE_CODE':2,'Environment':PEnv},'geometry':Pt}
+        var ESLs = Intersects(Pt,Filter(SLs,Esql))
+        if (Count(ESLs)==0) {Push(SLadds,SLdata)}; cumlen += SLen; slacklen += SLen
+        //Future Loops at end
+        if (Count(intFLs)>0 && (DPONLow!=null && DPONHigh!=null)) {
+          for (var FL in intFLs) {
+            var FLPONs = Split(FL.PON_Count,':')[1]
+            var FLPONLow = null; var FLPONHigh = null
+            if (Find('-',DPONs)>=0 && Count(Split(FLPONs,'-'))==2) {
+              FLPONLow = Number(Split(FLPONs,'-')[0])
+              FLPONHigh = Number(Split(FLPONs,'-')[1])
+            }
+            if (FLPONLow==null || FLPONHigh==null) {continue}
+            if ((FLPONLow>=DPONLow) && (FLPONHigh<=DPONHigh)) {
+              SLdata = {'attributes':{'Cable_ID':DID,'Cable_GUID':Text(DGID),'Length_Adjustment':50,'SUBTYPE_CODE':2,'Environment':PEnv,
+                                      'Fibers_Reserved':Ceil(Number(FL.OUTPUT_PORTS)/12)*12,'PON_Counts':FL.PON_Count,'Equipment_ID':FL.EQUIP_ID,'Equipment_GUID':FL.EQUIP_GUID},
+                        'geometry':Pt}
+              var ESLs = Intersects(Pt,Filter(SLs,Esql))
+              if (Count(ESLs)==0) {Erase(SLadds,-1); Push(SLadds,SLdata)}
+              cumlen += 50-SLen; slacklen += 50-SLen; intlen = 0
+            }
+          }
+        }
+      }
+    }
+  }
+
+  Console('\nGraadds: [' + Count(Graadds) + ']')
+  for (var key in Graadds) {Console(key + ':' + Graadds[key])}
+  Console('\nSLadds: [' + Count(SLadds) + ']')
+  for (var key in SLadds) {Console(key + ':' + SLadds[key])}
+  Console('\nPoleupdates: [' + Count(Poleupdates) + ']')
+  for (var key in Poleupdates) {Console(key + ':' + Poleupdates[key])}
+
+  //Console('\nERRORS:\n' + ERRORS)
+
+  return {
+    'result':iif(Count(ERRORS)!=0,iif(Count(Text(ERRORS))>5000,Left(Text(ERRORS),4997)+'...',ERRORS),'No Errors'),
+    'edit':[
+      {'className':'Graphics_Point', 
+      'adds':Graadds},
+      {'className':'Slack_Loop', 
+      'adds':SLadds},
+      {'className':'Pole', 
+      'updates':Poleupdates}
+    ]
+  }
+}",,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Strand Tools 1,Place Crossovers; Place Midspans,CALCULATION,,Strand_Tools_Rules_1,True,False,False,True,"var Spans = FeatureSetByName($datastore,'Span',['ObjectID','SPAN_TYPE'],true)
+var OHSpans = Filter(Spans,""SUBTYPE_CODE = 3"")
+var Strands = FeatureSetByName($datastore,'Strand',['ObjectID','SUBTYPE_CODE','STRAND_TYPE','PLACEMENT_TYPE','STRAND_SIZE'],true)
+var Poles = FeatureSetByName($datastore,'Pole',['ObjectID','SUBTYPE_CODE','Pole_Type'],true)
+var XOvers = Filter(Poles,""SUBTYPE_CODE = 4"")
+var MidSpans = Filter(Poles,""SUBTYPE_CODE = 3"")
+//PLACE CROSSOVERS
+if ($feature.Strand_Tools=='Crossovers') {
+  var EXOvers = {}
+  for (var X in XOvers) {
+    EXOvers[Text(X.ObjectID)]=Geometry(X)
+  }
+  var Xings = {}
+  var XingError = []
+  var ERRORS = []
+  for (var S in OHSpans) {
+    Console(S.ObjectID)
+    var XSpans = Intersects(S,OHSpans)
+    var XSpanList = []
+    for (var XS in XSpans) {
+      if (Equals(Geometry(XS),Geometry(S)) || Touches(Geometry(XS),Geometry(S))) {continue}
+      Console('  ' + XS.ObjectID)
+      Push(XSpanList,XS.ObjectID)
+      var Xing = Centroid(Intersection(BufferGeodetic(XS,0.1,'feet'),BufferGeodetic(S,0.1,'feet')))
+      var XingLoc = Sort([S.ObjectID,XS.ObjectID])
+      if (!HasKey(Xings,Text(XingLoc))) {
+        Console('  ' + XingLoc + ': ' + Xing)
+        Xings[Text(XingLoc)] = Xing
+      }
+    }
+    if (Count(XSpanList)>1) {
+      Push(XingError,S.ObjectID)
+      for (var i in XSpanList) {if (!Includes(XingError,XS.ObjectID)) {Push(XingError,XS.ObjectID)}}
+    }
+  }
+  Console(XingError)
+  if (Count(XingError)>0) {Push(ERRORS,'Manually split Span/Strand at these: ' + XingError)}
+  Console('\n-------------------\n')
+  var SpanUpdates = []
+  var SpanAdds = []
+  var StrandUpdates = []
+  var StrandAdds = []
+  var PoleAdds = []
+  var Order = ['Span','Strand']
+  for (var key in Xings) {
+    var XPt = Xings[key]
+    var Poledata = {'attributes':{'SUBTYPE_CODE':4,'Pole_Type':'Crossover'},'geometry':{'x':XPt['x'],'y':XPt['y'],'z':0,'spatialReference':{'wkid':4326}}}
+    Poledata['geometry'] = Point(Poledata['geometry'])
+    var dupe = 'N'
+    for (var E in EXOvers) {
+      if (Equals(Poledata['geometry'],EXOvers[E])) {dupe='Y';break}
+    }
+    if (dupe=='Y') {continue}
+    Push(PoleAdds,Poledata)
+    for (var O in Order) {
+      var XLines = Intersects(XPt,iif(Order[O]=='Span',Spans,Strands))
+      if (Count(XLines)>0) {for (var XS in XLines) {
+        Console(XS.ObjectID)
+        if (Includes(XingError,XS.ObjectID)) {continue}
+        var Updatedata = {'ObjectID':XS.ObjectID,'geometry':{'hasZ':true,'hasM':true,'paths':[[]],'spatialReference':{'wkid':4326}}}
+        if (Order[O]=='Span') {
+          var Adddata = {'attributes':{'SUBTYPE_CODE':3,'SPAN_TYPE':Text(XS.SPAN_TYPE)},'geometry':{'hasZ':true,'hasM':true,'paths':[[]],'spatialReference':{'wkid':4326}}}
+        }
+        if (Order[O]=='Strand') {
+          var Adddata = {'attributes':{'SUBTYPE_CODE':XS.SUBTYPE_CODE,'STRAND_TYPE':XS.STRAND_TYPE,'PLACEMENT_TYPE':XS.PLACEMENT_TYPE,'STRAND_SIZE':XS.STRAND_SIZE},'geometry':{'hasZ':true,'hasM':true,'paths':[[]],'spatialReference':{'wkid':4326}}}
+        }
+        var pnts = Geometry(XS)['paths'][0]
+        var Int = 'N'
+        for (var n=0; n<Count(pnts)-1; n++) {
+          var pnt0 = pnts[n]
+          var pnt1 = pnts[n+1]
+          var seg = Polyline({""paths"": [[ [pnt0['x'], pnt0['y']], [pnt1['x'], pnt1['y']] ]], ""spatialReference"": {'wkid':4326}})
+          Push(iif(Int=='N',Updatedata['geometry']['paths'][0],Adddata['geometry']['paths'][0]),[pnt0['x'],pnt0['y'],0,null])
+          if (Intersects(XPt,seg)) {
+            Int = 'Y'
+            Push(Updatedata['geometry']['paths'][0],[XPt['x'],XPt['y'],0,null])
+            Push(Adddata['geometry']['paths'][0],[XPt['x'],XPt['y'],0,null])
+          }
+          if (n==Count(pnts)-2) {
+            Push(Adddata['geometry']['paths'][0],[pnt1['x'],pnt1['y'],0,null])
+          }
+        }
+        Updatedata['geometry'] = Polyline(Updatedata['geometry'])
+        Adddata['geometry'] = Polyline(Adddata['geometry'])
+        Push(iif(Order[O]=='Span',SpanUpdates,StrandUpdates),Updatedata)
+        Push(iif(Order[O]=='Span',SpanAdds,StrandAdds),Adddata)
+      }}
+    }
+  }
+  Console('SpanUpdates:')
+  for (var key in SpanUpdates) {Console(key + ': ' + SpanUpdates[key])}
+  Console('\nSpanAdds:')
+  for (var key in SpanAdds) {Console(key + ': ' + SpanAdds[key])}
+  Console('\nStrandUpdates:')
+  for (var key in StrandUpdates) {Console(key + ': ' + StrandUpdates[key])}
+  Console('\nStrandAdds:')
+  for (var key in StrandAdds) {Console(key + ': ' + StrandAdds[key])}
+  Console('\nPoleAdds:')
+  for (var key in PoleAdds) {Console(key + ': ' + PoleAdds[key])}
+  return {
+    'result':iif(Count(ERRORS)!=0,iif(Count(Text(ERRORS))>5000,Left(Text(ERRORS),4997)+'...',ERRORS),'No Errors'),
+    'edit':[
+      {'className':'Span',
+       'updates':SpanUpdates},
+      {'className':'Span',
+       'adds':SpanAdds},
+      {'className':'Strand',
+       'updates':StrandUpdates},
+      {'className':'Strand',
+       'adds':StrandAdds},
+      {'className':'Pole',
+       'adds':PoleAdds}
+    ]
+  }
+}
+//PLACE MIDSPANS
+if ($feature.Strand_Tools=='Midspans') {
+  var EMidSpans = {}
+  for (var X in MidSpans) {
+    EMidSpans[Text(X.ObjectID)]=Geometry(X)
+  }
+  var MSadds = []
+  var MSErrors = []
+  var ERRORS = []
+  for (var S in OHSpans) {
+    Console(S.ObjectID)
+    var geom = Geometry(S)['paths'][0]
+    var x0 = geom[0]['x']
+    var y0 = geom[0]['y']
+    var x1 = geom[-1]['x']
+    var y1 = geom[-1]['y']
+    var midpt = Point({'x':(x0+x1)/2,'y':(y0+y1)/2,'z':0,'spatialReference':{'wkid':4326}})
+    Console(midpt)
+    if (!Intersects(midpt,S)) {
+      Console('Midpoint off Span')
+      Push(MSErrors,S.ObjectID)
+      continue
+    }
+    var dupe = 'N'
+    for (var E in EMidSpans) {
+      if (Equals(midpt,EMidSpans[E])) {dupe='Y';break}
+    }
+    if (dupe=='Y') {continue}
+    if (!Intersects(midpt,S)) {
+      Console('Midpoint off Span')
+      Push(MSErrors,S.ObjectID)
+      continue
+    }
+    Push(MSadds,{'attributes':{'SUBTYPE_CODE':3,'Pole_Type':'Midspan'},'geometry':midpt})
+  }
+  Console(MSErrors)
+  if (Count(MSErrors)>0) {Push(ERRORS,'These Spans aren\'t two-point lines: ' + MSErrors)}
+  Console('\nMSadds:')
+  for (var key in MSadds) {Console(key + ': ' + MSadds[key])}
+  return {
+    'result':iif(Count(ERRORS)!=0,iif(Count(Text(ERRORS))>5000,Left(Text(ERRORS),4997)+'...',ERRORS),'No Errors'),
+    'edit':[
+      {'className':'Pole',
+       'adds':MSadds}
+    ]
+  }
+}",,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Strand Tools 2,Place Strand,CALCULATION,,Strand_Tools_Rules_2,True,False,False,True,"var Spans = FeatureSetByName($datastore,'Span',['ObjectID','SUBTYPE_CODE','STRAND_LIST','Calculated_Length'],true)
+var CONs = FeatureSetByName($datastore,'Conduit',['ObjectID','SUBTYPE_CODE','DUCT_CONTENT','DUCT_CONTENT_TYPE','DUCT_SEGMENTS'],true)
+var Strands = FeatureSetByName($datastore,'Strand',['ObjectID','SUBTYPE_CODE','STRAND_CONTENT','STRAND_CONTENT_TYPE'],true)
+var UGSpans = Filter(Spans,""SUBTYPE_CODE <> 3"")
+var OHSpans = Filter(Spans,""SUBTYPE_CODE = 3"")
+var Transmedia = FeatureSetByName($datastore,'Transmedia',['ObjectID','Cable_GUID','Network_Type','Transmedia_Type','Total_Fibers','Cable_ID','Fiber_Count','Adjusted_Length','Calculated_Length','Status'],true)
+function ConvArr(fieldval) {
+  var Arr = iif(Find('\""',fieldval)>=0,
+                Split(Replace(Replace(Replace(fieldval,'\""',''),'[',''),']',''),','),
+                Split(Replace(Replace(fieldval,'[',''),']',''),','))
+  Arr = iif(Text(Arr)=='[""""]',[],Arr)
+  return Arr
+}
+var ERRORS = []
+//PLACE STRAND
+if ($feature.Strand_Tools=='Place_Strand') {
+  Console('\n>---\nDATA COLLECTION\n>---\n')
+  Console('\n>---\nBEGIN PROCESSING\n>---\n')
+  var STRANDadds = []
+  var SPANupdates = []
+  var FOCClassOrder = ['Feeder','Distribution','Terminal Tail','Drop']
+  var sql
+  for (var S in OHSpans) {
+    var SOID = Text(S.ObjectID)
+    Console('Span ID: ' + SOID)
+    var EStrands = {}
+    var intStrands = Intersects(S,Strands)
+    if (Count(intStrands)>0) {for (var Strand in intStrands) {
+      if (Contains(Strand,S) || Equals(Strand,S)) {
+        EStrands[Text(Strand.ObjectID)] = [Strand.SUBTYPE_CODE,ConvArr(Strand.STRAND_CONTENT),Strand.STRAND_CONTENT_TYPE,Geometry(Strand)]
+      }
+    }}
+    var nonDrops = Filter(Within(S,Transmedia),""Network_Type <> 'Drop'"")
+    if (Count(nonDrops)==0) {Console('\nOnly drops here\n'); Push(SPANupdates,{'ObjectID':SOID,'attributes':{'STRAND_LIST':S.STRAND_LIST}}); continue}
+    //Find Cables at Span line by class order (Feeder/Distribution/Tail/Drop) and sorted by length
+    var CtsbyClass = [0,0,0,0]
+    var CableList = []
+    var Status = 'Proposed'
+    for (var Class in FOCClassOrder) {
+      var FOCType = FOCClassOrder[Class]
+      Console('Class: ' + FOCType)
+      if (FOCType == 'Terminal Tail') {
+        sql = ""Transmedia_Type = 'Terminal Tail'""
+        var intCables = OrderBy(Filter(Intersects(Transmedia,S),sql), 'Calculated_Length DESC')
+      }
+      else if (FOCType == 'Drop') {
+        sql = ""Network_Type = 'Drop'""
+        var intCables = OrderBy(Filter(Intersects(Transmedia,S),sql), 'DropDist_to_Acc DESC')
+      }
+      else {
+        sql = ""Network_Type = @FOCType AND Transmedia_Type <> 'Terminal Tail'""
+        var intCables = OrderBy(Filter(Intersects(Transmedia,S),sql), 'Calculated_Length DESC')
+      }
+      Console(FOCType + ' cables found at Span: ' + Count(intCables))
+      if (Count(intCables)>0) {for (var Cable in intCables) {
+        var CableOID = Text(Cable.ObjectID)
+        var CGUID = Text(Cable.Cable_GUID)
+        var CStatus = Cable.Status
+        if (Contains(Cable,S)) {
+          Console('  Cable OID: ' + CableOID + ' - ' + FOCType + ' (' + Ceil(Cable.Adjusted_Length) + '\')')
+          CtsbyClass[Class]++
+          Push(CableList,CGUID)
+          if (CStatus=='Existing') {Status='Existing'}
+          ////Establish ordered content list
+          //Do this for Feeder or Distribution
+          if (Includes(['Feeder','Distribution'],FOCType)) {
+          }
+          else if (FOCType == 'Terminal Tail') {
+          }
+          else if (FOCType == 'Drop') {
+          }
+          Console('  -------')
+        }     
+      }}
+    }
+    var CType = ''
+    for (var n in CtsbyClass) {
+      if (CtsbyClass[n]==0) {continue}
+      CType += iif(CType=='',FOCClassOrder[n],';' + FOCClassOrder[n])
+    }
+    Console('CType: ' + CType + ' ' + CtsbyClass)
+    Console('CableList: ' + CableList)
+    var Size = iif(S.Calculated_Length<=375,'6M','6.6M')
+    var Stranddata = {'attributes':{'SUBTYPE_CODE':iif(Count(CableList)==0,3,2),'STRAND_CONTENT_TYPE':iif(CType=='','None',CType),'STRAND_CONTENT':Text(CableList),'STRAND_SIZE':Size,'STATUS':Status,'Offset_Distance':'1','Strand_GUID':Upper(Guid())},
+                      'geometry':Geometry(S)}
+    var dupe = 'N'
+    for (var E in EStrands) {if (Equals(EStrands[E][3],Geometry(S))) {dupe='Y';break}}   
+    if (dupe=='Y') {continue}
+    Push(STRANDadds,Stranddata)
+    Push(SPANupdates,{'ObjectID':SOID,'attributes':{'STRAND_LIST':S.STRAND_LIST}})
+    Console('\n<---NEXT SPAN--->\n')
+  }
+  //Finalization
+  Console('\nSTRANDadds: [' + Count(STRANDadds) + ']')
+  for (var key in STRANDadds) {Console(key + ':' + STRANDadds[key])}
+  Console('\nSPANupdates: [' + Count(SPANupdates) + ']')
+  for (var key in SPANupdates) {Console(key + ':' + SPANupdates[key])}
+  Console('\nERRORS:\n' + ERRORS)
+  return {
+    'result':iif(Count(ERRORS)!=0,iif(Count(Text(ERRORS))>5000,Left(Text(ERRORS),4997)+'...',ERRORS),'No Errors'),
+    'edit':[
+      {'className':'Strand',
+      'adds':STRANDadds},
+      {'className':'Span',
+      'updates':SPANupdates}
+    ]
+  }
+}",,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Strand Tools 3,,CALCULATION,,Strand_Tools_Rules_3,True,False,False,True,//Placeholder,,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Conduit Tools 1,Create non-FlexNAP Conduits; Merge non-FlexNAP Conduits; Set Conduit Offset Distance,CALCULATION,,Conduit_Tools_Rules_1,True,False,False,True,"var Spans = FeatureSetByName($datastore,'Span',['ObjectID','SUBTYPE_CODE'],true)
+var CONs = FeatureSetByName($datastore,'Conduit',['ObjectID','SUBTYPE_CODE','Duct_Content','Duct_Content_Type','Duct_Segments','From_Conduit','To_Conduit'],true)
+var nFNAPCONs = Filter(CONs,""Duct_Content_Type <> 'Distribution'"")
+var UGSpans = Filter(Spans,""SUBTYPE_CODE <> 3"")
+var UGSTRs = FeatureSetByName($datastore,'UG_Structure',['ObjectID','SUBTYPE_CODE','STRUCTURE_TYPE'],true)
+var BPs = Filter(UGSTRs,""STRUCTURE_TYPE = 'Bore Pit'"")
+var Transmedia = FeatureSetByName($datastore,'Transmedia',['ObjectID','Network_Type','Transmedia_Type','Total_Fibers','Cable_ID','Cable_GUID','Fiber_Count','Adjusted_Length','Calculated_Length','Drop_Access','Limitting_OD'],true)
+
+function ConvArr(fieldval) {
+  var Arr = iif(Find('\""',fieldval)>=0,
+                Split(Replace(Replace(Replace(fieldval,'\""',''),'[',''),']',''),','),
+                Split(Replace(Replace(fieldval,'[',''),']',''),','))
+  Arr = iif(Text(Arr)=='[""""]',[],Arr)
+  return Arr
+}
+
+var ERRORS = []
+
+//SUGGESTED CONDUIT
+if ($feature.Conduit_Tools=='nonFNAP_Conduit') {
+  var CableCONSizes = {'Core':'2.50','Distribution':'2.50','Terminal Tail':'2.50','Drop':'1.25'}
+  var CONTypes = {'4.00':3,'2.50':3,'1.25':3}
+  //var FOCDia = {'432':[0.83,0.83],'288':[0.79,0.79],'144':[0.69,0.69],'96':[0.54,0.54],'72':[0.48,0.48],'48':[0.48,0.48],'24':[0.48,0.48],'12':[0.31,0.17],'1':[0.21,0.21]}
+  //var FillRatio = 0.70
+  //Find Cables at Span line by class order (Core/Distribution/Tail/Drop) and sorted by length
+  var FOCClassOrder = [/*'Core','Distribution',*/'Terminal Tail','Drop']
+  var sql = ''
+  var SpanErrors = []
+  var CONErrors = []
+  var Spanupdates = []
+  var CONadds = []
+  for (var S in UGSpans) {
+    //Establish Conduit counts, tallies, conduit sizes, and content of conduits
+    var CONTallies = {'Core':0,'Distribution':0,'Terminal Tail':0,'Drop':0}
+    var CONCounts = {'Core':0,'Distribution':0,'Terminal Tail':0,'Drop':0,'Total':0}
+    var CONContents = {}
+    var SOID = Text(S.ObjectID)
+    Console('Span ID: ' + SOID)
+    var ECONs = {}
+    var intCONs = Intersects(S,CONs)
+    if (Count(intCONs)>0) {for (var C in intCONs) {
+      if (Contains(C,S) || Equals(C,S)) {
+        ECONs[Text(C.ObjectID)] = [C.SUBTYPE_CODE,ConvArr(C.Duct_Content),C.Duct_Content_Type]
+      }
+    }}
+    for (var Class in FOCClassOrder) {
+      var FOCType = FOCClassOrder[Class]
+      var CONNomID = Number(CableCONSizes[Text(FOCType)])
+      //var MAXFill = CONNomID*FillRatio
+      Console('Class: ' + FOCType + ' / ' + CONNomID)
+      if (FOCType == 'Terminal Tail') {
+        sql = ""Transmedia_Type = 'Terminal Tail'""
+        var intCables = OrderBy(Filter(Intersects(Transmedia,S),sql), 'Calculated_Length DESC')
+      }
+      else if (FOCType == 'Drop') {
+        sql = ""Network_Type = 'Drop'""
+        var intCables = OrderBy(Filter(Intersects(Transmedia,S),sql), 'DropDist_to_Acc DESC')
+        var DropAcc = {}
+        for (var Drop in intCables) {
+          if (Contains(Drop,S)) {
+            if (!HasKey(DropAcc,Drop.Drop_Access)) {
+              DropAcc[Text(Drop.Drop_Access)] = []
+              Push(DropAcc[Text(Drop.Drop_Access)],Text(Drop.ObjectID))
+            }
+            else {Push(DropAcc[Text(Drop.Drop_Access)],Text(Drop.ObjectID))}
+          }
+        }
+        Console('Drop Cables by Access location: ' + DropAcc)
+      }
+      else {
+        sql = ""Network_Type = @FOCType AND Transmedia_Type <> 'Terminal Tail' AND Transmedia_Type NOT IN ('FlexNAP Cable','FlexNAP Preterm Lateral')""
+        var intCables = OrderBy(Filter(Intersects(Transmedia,S),sql), 'Total_Fibers DESC')
+      }
+      Console(FOCType + ' cables found at Span: ' + Count(intCables))
+      if (Count(intCables)>0) {for (var Cable in intCables) {
+        var CableCt = Text(Cable.Total_Fibers)
+        var CArea = Number(Cable.Limitting_OD)
+        var CableOID = Text(Cable.ObjectID); var CGUID = Text(Cable.Cable_GUID)
+        if (Contains(Cable,S)) {
+          Console('    Cable OID: ' + CableOID + ' - ' + FOCType + ' (' + Round(Cable.Calculated_Length) + '\') ' + Cable.Drop_Access)
+          Console('    CONCounts: ' + CONCounts)
+          Console('    CONTallies: ' + CONTallies)
+          ////Begin to fill conduits
+          //Do this for Core or Distribution
+          if (Includes(['Core','Distribution'],FOCType)) {
+            //Do some core things
+            if (CONCounts[FOCType] == 0 && CONTallies[FOCType] == 0) {
+              CONCounts[FOCType] += 1
+              CONCounts['Total'] += 1
+              CONContents[Text(FOCType + '-' + Text(CONCounts[FOCType]))] = Dictionary(CableCONSizes[FOCType],[])
+              Console('    ' + CONContents)
+              Console('    ' + CONContents[Text(FOCType + '-' + Text(CONCounts[FOCType]))])
+              Console('    ' + Count(CONContents[Text(FOCType + '-' + Text(CONCounts[FOCType]))][CableCONSizes[FOCType]]))
+            }
+            if ((CONTallies[FOCType] + CArea) > 2*0.48) {
+            //if ((CONTallies[FOCType] + CArea) > 1.01*MAXFill) {
+              CONCounts[FOCType] += 1
+              CONCounts['Total'] += 1
+              CONContents[Text(FOCType + '-' + Text(CONCounts[FOCType]))] = Dictionary(CableCONSizes[FOCType],[])
+              CONTallies[FOCType] = CArea
+              Push(CONContents[Text(FOCType + '-' + Text(CONCounts[FOCType]))][CableCONSizes[FOCType]],CGUID)
+            }
+            else {
+              CONTallies[FOCType] += CArea
+              Push(CONContents[Text(FOCType + '-' + Text(CONCounts[FOCType]))][CableCONSizes[FOCType]],CGUID)
+            }                
+          }
+          else if (FOCType == 'Terminal Tail') {
+            //Do some tail things
+            if (CONCounts[FOCType] == 0 && CONTallies[FOCType] == 0) {
+              CONCounts[FOCType] += 1
+              CONCounts['Total'] += 1
+              CONContents[Text(FOCType + '-' + Text(CONCounts[FOCType]))] = Dictionary(CableCONSizes[FOCType],[])
+              Console('    ' + CONContents)
+              Console('    ' + CONContents[Text(FOCType + '-' + Text(CONCounts[FOCType]))])
+              Console('    ' + Count(CONContents[Text(FOCType + '-' + Text(CONCounts[FOCType]))][CableCONSizes[FOCType]]))
+            }
+            if ((CONTallies[FOCType] + 1) > 4) {
+              CONCounts[FOCType] += 1
+              CONCounts['Total'] += 1
+              CONContents[Text(FOCType + '-' + Text(CONCounts[FOCType]))] = Dictionary(CableCONSizes[FOCType],[])
+              CONTallies[FOCType] = 1
+              Push(CONContents[Text(FOCType + '-' + Text(CONCounts[FOCType]))][CableCONSizes[FOCType]],CGUID)
+            }
+            else {
+              CONTallies[FOCType] += 1
+              Push(CONContents[Text(FOCType + '-' + Text(CONCounts[FOCType]))][CableCONSizes[FOCType]],CGUID)
+            }
+          }
+          else if (FOCType == 'Drop') {
+            //Do some drop things
+            if (CONCounts[FOCType] == 0 && CONTallies[FOCType] == 0) {
+              CONCounts[FOCType] += 1
+              CONCounts['Total'] += 1
+              CONContents[Text(FOCType + '-' + Text(CONCounts[FOCType]))] = Dictionary(CableCONSizes[FOCType],[])
+            }
+            if ((CONTallies[FOCType] + 1) > 4) {
+              CONCounts[FOCType] += 1
+              CONCounts['Total'] += 1
+              CONContents[Text(FOCType + '-' + Text(CONCounts[FOCType]))] = Dictionary(CableCONSizes[FOCType],[])
+              CONTallies[FOCType] = 1
+              Push(CONContents[Text(FOCType + '-' + Text(CONCounts[FOCType]))][CableCONSizes[FOCType]],CGUID)
+            }
+            else {
+              CONTallies[FOCType] += 1
+              Push(CONContents[Text(FOCType + '-' + Text(CONCounts[FOCType]))][CableCONSizes[FOCType]],CGUID)
+            }
+          }
+          Console('    Core Tally: ' + CONTallies['Core'])
+          Console('    Core Conduits: ' + CONCounts['Core'])
+          Console('    Dist Tally: ' + CONTallies['Distribution'])
+          Console('    Dist Conduits: ' + CONCounts['Distribution'])
+          Console('    Tail Tally: ' + CONTallies['Terminal Tail'])
+          Console('    Tail Conduits: ' + CONCounts['Terminal Tail'])
+          Console('    Drop Tally: ' + CONTallies['Drop'])
+          Console('    Drop Conduits: ' + CONCounts['Drop'])
+          Console('    Total Conduits: ' + CONCounts['Total'])
+          Console('    -------')
+        }     
+      }}
+    }
+    var CONSuggested = {'1) Total':CONCounts['Total'],'2) Breakdown':CONCounts,'3) Contents':CONContents}
+    var NewCONs = CONSuggested['3) Contents']
+    Console('CONSuggested: ' + CONSuggested)
+    if (CONSuggested['1) Total']==0) {Push(SpanErrors,Text(SOID));continue}
+    var Spandata = {'ObjectID':SOID,'attributes':{'DUCT_SUGGESTED':Text(CONSuggested)}}
+    Push(Spanupdates,Spandata)
+    for (var key in NewCONs) {
+      var NC = NewCONs[key]
+      var CType = Split(key,'-')[0]
+      //Console(key + ':')
+      for (var k in NC) {
+        var CSize = CONTypes[Text(k)]
+        var CONcont = NC[k]
+        Console(CType + '\nSize: ' + k + ' (' + CSize + ')\nContents: ' + CONcont)
+      }
+      var CONdata = {'attributes':{'SUBTYPE_CODE':Number(CSize),'Duct_Content_Type':Text(CType),'Duct_Content':Text(CONcont),'Duct_Size':Text(k)},
+                     'geometry':Geometry(S)}
+      var dupe = 'N'
+      for (var E in ECONs) {
+        if (Text(ECONs[E][1])!=Text(CONcont)) {for (var i in CONcont) {
+          if (Includes(ECONs[E][1],CONcont[i])) {dupe='Y';Push(CONErrors,[E,CONcont[i],SOID])}
+        }}
+        if (Text(ECONs[E][1])==Text(CONcont)) {dupe='Y';break}
+      }
+      if (dupe=='Y') {continue}
+      Push(CONadds,CONdata)
+      Console('\n----------\n')
+    }
+    Console('\nNEXT SPAN\n')
+  }
+  Console('CONErrors:\n' + CONErrors)
+  if (Count(CONErrors)>0) {for (var i in CONErrors) {Push(ERRORS,'Conduit ' + CONErrors[i][0] + ' already contains cable ' + CONErrors[i][1] + ' at Span ' + CONErrors[i][2])}}
+  Console('SpanErrors:\n' + SpanErrors)
+  if (Count(SpanErrors)>0) {Push(ERRORS,'These Spans have a geometry issue - No Conduits created: ' + SpanErrors)}
+  Console('\nCONadds: [' + Count(CONadds) + ']')
+  for (var key in CONadds) {Console(key + ':' + CONadds[key])}
+  Console('\nSpanupdates: [' + Count(Spanupdates) + ']')
+  for (var key in Spanupdates) {Console(key + ':' + Spanupdates[key])}
+  Console('\nERRORS:\n' + ERRORS)
+  return {
+    'result':iif(Count(ERRORS)!=0,iif(Count(Text(ERRORS))>5000,Left(Text(ERRORS),4997)+'...',ERRORS),'No Errors'),
+    'edit':[
+      {'className':'Conduit', 
+      'adds':CONadds},
+      {'className':'Span', 
+      'updates':Spanupdates}
+    ]
+  }
+}
+
+//MERGE CONDUITS
+if ($feature.Conduit_Tools == 'Merge_Conduits') {
+  var paths = Dictionary()
+  var REVpaths = Dictionary()
+  var LikeCONs = Dictionary()
+  var CONTypes = Dictionary()
+  var CONContentTypes = Dictionary()
+  var CONStartCON = Dictionary()
+  var CONEndCON = Dictionary()
+  var CONCount = 0
+  for (var CON in nFNAPCONs) {
+    paths[Text(CON.ObjectID)] = []
+    REVpaths[Text(CON.ObjectID)] = []
+    CONTypes[Text(CON.ObjectID)] = CON.SUBTYPE_CODE
+    CONContentTypes[Text(CON.ObjectID)] = CON.Duct_Content_Type
+    CONStartCON[Text(CON.ObjectID)] = ConvArr(CON.From_Conduit)
+    CONEndCON[Text(CON.ObjectID)] = ConvArr(CON.To_Conduit)
+    var Geom = Geometry(CON)['paths'][0]
+    for (var coord in Geom) {
+      var Xcoord = Geometry(CON)['paths'][0][coord]['x']
+      var Ycoord = Geometry(CON)['paths'][0][coord]['y']
+      Push(paths[Text(CON.ObjectID)],[Xcoord,Ycoord,0,null])
+    }
+    REVpaths[Text(CON.ObjectID)] = Reverse(paths[Text(CON.ObjectID)])
+    if (!HasKey(LikeCONs,CON.Duct_Content)) {
+      LikeCONs[Text(CON.Duct_Content)] = []
+      CONCount += 1
+      Push(LikeCONs[Text(CON.Duct_Content)],Text(CON.ObjectID))
+    }
+    else {
+      Push(LikeCONs[Text(CON.Duct_Content)],Text(CON.ObjectID))
+    }
+  }
+  Console('\nLikeCONs:')
+  for (var key in LikeCONs) {Console(key + ':' + LikeCONs[key])}
+  Console('\nBEGIN PROCESSING\n')
+  //Build Merged conduit features from those that share contents.
+  var CONSetUpdates = []
+  var CONSetDels = []
+  for (var LC in LikeCONs) {
+    var CONSetPaths = Dictionary(Text(LC),[])
+    var CONSetData = Dictionary(Text(LC),{'ObjectID':'',
+                                          'attributes':{'SUBTYPE_CODE':'','Duct_Content':'','Duct_Content_Type':'','Duct_Segments':''},
+                                          'geometry':{""hasZ"":true,""hasM"":true,""paths"":[],""spatialReference"":{""wkid"":4326}}})
+    if (Count(LikeCONs[LC])>1) {
+      var CONSet = LikeCONs[LC]
+      Console(LC + ': ' + CONSet)
+      var CONSet_Ordered = []
+      var CONPrev = ''
+      var CONNext = ''
+      for (var i=0; i < 100; i++) {for (var CON in CONSet) {
+        var CONOID = CONSet[CON]
+        //Lock in new conduit and set geometry
+        if (Count(CONSet) == Count(CONSet_Ordered)) {
+          var index = 0
+          for (var pnt in CONSetPaths[Text(LC)]) {
+            if (index < Count(CONSetPaths[Text(LC)])-1) {
+              if (Text(CONSetPaths[Text(LC)][index]) == Text(CONSetPaths[Text(LC)][index+1])) {
+                Erase(CONSetPaths[Text(LC)],index+1)
+              }
+              else {index += 1}
+            }
+          }
+          CONSetData[Text(LC)]['geometry']['paths'][0] = CONSetPaths[Text(LC)]
+          CONSetData[Text(LC)]['geometry'] = Polyline(CONSetData[Text(LC)]['geometry'])
+          Push(CONSetUpdates,CONSetData[Text(LC)])
+          LikeCONs[LC] = CONSet_Ordered
+          i = 100
+          break
+        }
+        if (Includes(CONSet_Ordered,CONOID)) {continue}
+        //Find the first conduit in the set at one of the ends.
+        //if (i == 0) {if (Text(CONStartCON[Text(CONOID)])=='[""""]' || Text(CONEndCON[Text(CONOID)])=='[""""]') {
+        if (i == 0) {if (Count(CONStartCON[Text(CONOID)])==0 || Count(CONEndCON[Text(CONOID)])==0) {
+          Console('  CON OID: ' + CONOID + ' is first.')
+          Push(CONSet_Ordered,CONOID)
+          CONSetData[Text(LC)]['ObjectID'] = Text(CONOID)
+          CONSetData[Text(LC)]['attributes']['SUBTYPE_CODE'] = CONTypes[Text(CONOID)]
+          CONSetData[Text(LC)]['attributes']['Duct_Content'] = Text(LC)
+          CONSetData[Text(LC)]['attributes']['Duct_Content_Type'] = CONContentTypes[Text(CONOID)]
+          CONSetData[Text(LC)]['attributes']['Duct_Segments'] = Text(CONSet)
+          //if (Text(CONStartCON[Text(CONOID)])=='[""""]') {
+          if (Count(CONStartCON[Text(CONOID)])==0) {
+            CONNext = CONEndCON[Text(CONOID)]
+            for (var pnt in paths[Text(CONOID)]){Push(CONSetPaths[Text(LC)],paths[Text(CONOID)][pnt])}
+          }
+          //else if (Text(CONEndCON[Text(CONOID)])=='[""""]') {
+          else if (Count(CONEndCON[Text(CONOID)])==0) {
+            CONNext = CONStartCON[Text(CONOID)]
+            for (var pnt in REVpaths[Text(CONOID)]){Push(CONSetPaths[Text(LC)],REVpaths[Text(CONOID)][pnt])}
+          }
+          CONPrev = Text(CONOID)
+          break
+        }}
+        //Find the next conduit along the path and add its path to the new conduit set path
+        else {
+          Console('CON OID: ' + CONOID + ' - ' + CONNext)
+          if (Includes(CONNext,Text(CONOID))) {
+            Console('  CON OID: ' + CONOID + ' is next.')
+            Push(CONSet_Ordered,CONOID)
+            Push(CONSetDels,{'ObjectID':CONOID})
+            if (Includes(CONEndCON[Text(CONOID)],Text(CONPrev))) {
+              CONNext = CONStartCON[Text(CONOID)]
+              CONPrev = Text(CONOID)
+              for (var pnt in REVpaths[Text(CONOID)]){Push(CONSetPaths[Text(LC)],REVpaths[Text(CONOID)][pnt])}
+              break
+            }
+            else if (Includes(CONStartCON[Text(CONOID)],Text(CONPrev))) {
+              CONNext = CONEndCON[Text(CONOID)]
+              CONPrev = Text(CONOID)
+              for (var pnt in paths[Text(CONOID)]){Push(CONSetPaths[Text(LC)],paths[Text(CONOID)][pnt])}
+              break
+            }
+          }
+          else {continue}
+        }       
+      }}
+    }
+    //For conduit sets that are single conduit segments.
+    else {
+      var CONSet = LikeCONs[LC]
+      for (var CON in CONSet) {
+        var CONOID = CONSet[CON]
+        CONSetData[Text(LC)]['ObjectID'] = Text(CONOID)
+        CONSetData[Text(LC)]['attributes']['SUBTYPE_CODE'] = CONTypes[Text(CONOID)]
+        CONSetData[Text(LC)]['attributes']['Duct_Content'] = Text(LC)
+        CONSetData[Text(LC)]['attributes']['Duct_Content_Type'] = CONContentTypes[Text(CONOID)]
+        CONSetData[Text(LC)]['attributes']['Duct_Segments'] = Text(CONSet)
+        for (var pnt in paths[Text(CONOID)]){Push(CONSetPaths[Text(LC)],paths[Text(CONOID)][pnt])}
+        CONSetData[Text(LC)]['geometry']['paths'][0] = CONSetPaths[Text(LC)]
+        CONSetData[Text(LC)]['geometry'] = Polyline(CONSetData[Text(LC)]['geometry'])
+        Push(CONSetUpdates,CONSetData[Text(LC)])
+      }
+    }
+  }
+  //Console('CONErrors:\n' + CONErrors)
+  //if (Count(CONErrors)>0) {for (var i in CONErrors) {Push(ERRORS,'Conduit ' + CONErrors[i][0] + ' already contains cable ' + CONErrors[i][1] + ' at Span ' + CONErrors[i][2])}}
+  Console('\nCONSetUpdates: [' + Count(CONSetUpdates) + ']')
+  for (var key in CONSetUpdates) {Console(key + ':' + CONSetUpdates[key])}
+  Console('\nCONSetDels: [' + Count(CONSetDels) + ']')
+  for (var key in CONSetDels) {Console(key + ':' + CONSetDels[key])}
+  return {
+    'result':iif(Count(ERRORS)!=0,iif(Count(Text(ERRORS))>5000,Left(Text(ERRORS),4997)+'...',ERRORS),'No Errors'),
+    'edit':[
+      {'className':'Conduit',
+      'updates':CONSetUpdates},
+      {'className':'Conduit',
+      'deletes':CONSetDels}
+    ]
+  }
+}
+
+//SET CONDUIT OFFSET
+if ($feature.Conduit_Tools == 'Set_Conduit_Offset') {
+  var Spans = FeatureSetByName($datastore,'Span',['ObjectID','CALCULATED_LENGTH'],true)
+  var CONsbySpan = Dictionary()
+  var CONOffDist = Dictionary()
+  //Determine # of conduits at each Span and store in a dictionary by OID.
+  for (var Span in Spans) {
+    var CONs = FeatureSetByName($datastore,'Conduit',['ObjectID','Calculated_Length'],true)
+    var DuctCount = Count(Within(Span,CONs))
+    CONsbySpan[Text(Span.ObjectID)] = Number(DuctCount)
+  }
+  var CONCounts = [1,2,3,4,5,6,7,8,9,10]
+  for (var CONCount in CONCounts) {
+    for (var Span in Spans) {
+      var DuctCount = CONsbySpan[Text(Span.ObjectID)]
+      if (DuctCount > CONCounts[CONCount]) {
+        continue
+      }
+      var intCONs = OrderBy(Within(Span,FeatureSetByName($datastore,'Conduit',['ObjectID','Calculated_Length'],true)),'Calculated_Length ASC')
+      var CONindex = 1
+      for (var intCON in intCONs) {
+        var SpanCount = Count(Contains(intCON,Spans))
+        if (SpanCount <= CONCounts[CONCount]) {
+          if (HasKey(CONOffDist,Text(intCON.ObjectID))) {
+            if (Number(CONindex) > Number(CONOffDist[Text(intCON.ObjectID)])) {
+              CONOffDist[Text(intCON.ObjectID)] = CONindex
+            }
+          }
+          else {
+            CONOffDist[Text(intCON.ObjectID)] = CONindex
+          }
+        }
+        CONindex += 1
+      }
+    }
+  }
+  var CONupdates = []
+  for (var CONkey in CONOffDist) {
+    CONupdates[Count(CONupdates)] = {'ObjectID':CONkey,'attributes':{'Offset_Distance':CONOffDist[CONkey]}}
+  }
+  return {
+    'result':iif(Count(ERRORS)!=0,iif(Count(Text(ERRORS))>5000,Left(Text(ERRORS),4997)+'...',ERRORS),'No Errors'),
+    'edit':[
+      {'className':'Conduit',
+      'updates':CONupdates}
+    ]
+  }
+}",,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Conduit Tools 2,Create FlexNAP Conduits,CALCULATION,,Conduit_Tools_Rules_2,True,False,False,True,"var Spans = FeatureSetByName($datastore,'Span',['ObjectID','SUBTYPE_CODE'],true)
+var CONs = FeatureSetByName($datastore,'Conduit',['ObjectID','SUBTYPE_CODE','Duct_Content','Duct_Content_Type','Duct_Segments'],true)
+var UGSpans = Filter(Spans,""SUBTYPE_CODE = 2"")
+var UGSTRs = FeatureSetByName($datastore,'UG_Structure',['ObjectID','SUBTYPE_CODE','STRUCTURE_TYPE'],true)
+var BPs = Filter(UGSTRs,""STRUCTURE_TYPE = 'Bore Pit'"")
+var Transmedia = FeatureSetByName($datastore,'Transmedia',['ObjectID','Network_Type','Transmedia_Type','Total_Fibers','Cable_ID','Cable_GUID','Cable_Series','Fiber_Count','Adjusted_Length','Calculated_Length','DropDist_to_Acc'],true)
+var FNAPs = Filter(Transmedia,""Transmedia_Type IN ('FlexNAP Cable','FlexNAP Preterm Lateral')"")
+var nFNAPs = Filter(Transmedia,""Transmedia_Type NOT IN ('FlexNAP Cable','FlexNAP Preterm Lateral')"")
+var Splices = FeatureSetByName($datastore,'Splice_Closure',['ObjectID','SUBTYPE_CODE','Total_Splices','Branch_Splices','PON_COUNT','Cables_IN','Cables_OUT','COMMENTS','ENVIRONMENT'],true)
+
+function ConvArr(fieldval) {
+  var Arr = iif(Find('\""',fieldval)>=0,
+                Split(Replace(Replace(Replace(fieldval,'\""',''),'[',''),']',''),','),
+                Split(Replace(Replace(fieldval,'[',''),']',''),','))
+  Arr = iif(Text(Arr)=='[""""]',[],Arr)
+  return Arr
+}
+
+var ERRORS = []
+
+//CREATE FNAP CONDUITS
+if ($feature.Conduit_Tools=='FNAP_Conduit') {
+//  var CableCONSizes = {'RPX':{'12':'2.00','24':'2.00','36':'2.00','48':'2.00','72':'2.00','144':'2.00'},
+//                       'ALTOS':{'12':'2.00','24':'2.00','36':'2.00','48':'2.00','72':'2.00','144':'3.00','216':'3.00','432':'3.00'}
+//                      }
+  var CableCONSizes = {'RPX':{'12':'2.50','24':'2.50','36':'2.50','48':'2.50','72':'2.50','144':'2.50'},
+                       'ALTOS':{'12':'2.50','24':'2.50','36':'2.50','48':'2.50','72':'2.50','144':'4.00','216':'4.00','432':'4.00'}
+                      }
+
+  var SpanErrors = []
+  var CONErrors = []
+  var CONadds = []
+  for (var C in FNAPs) {
+    var COID = C.ObjectID; var CGUID = C.Cable_GUID
+    var CS = C.Cable_Series; var Ct = C.Total_Fibers
+    var Pts = Geometry(C)['paths'][0]
+    Console('COID: '+COID+' - GUID: '+CGUID)
+
+    var CONPaths = []
+    var error = 'N'
+    for (var n=0;n<Count(Pts)-1;n++) {
+      var P0 = Pts[n]; var P1 = Pts[n+1]
+      var midpt = Point({'x':(P0['x']+P1['x'])/2,'y':(P0['y']+P1['y'])/2,'z':0,'spatialReference':{'wkid':4326}})
+      var intS = First(Intersects(midpt,UGSpans))
+      var intSPs = Intersects(P1,Filter(Splices,""Cables_IN = @CGUID""))
+      if (Count(Intersects(midpt,Spans))==0) {Push(SpanErrors,[Text(COID),Text(n+1)+'-'+Text(n+2)]); error='Y'}
+      var intCONs = Intersects(midpt,CONs)
+      //Establish array of coordinates for new UG portion of Cable
+      if (intS!=null && Count(CONPaths)==0) {Push(CONPaths,[])}
+      //if (intS!=null && Count(intSPs)>0) {Push(CONPaths,[])}
+      if (intS==null) {
+        Console('  Segment '+n+' is Aerial')
+        if (Count(CONPaths)!=0 && Count(CONPaths[-1])!=0) {Push(CONPaths,[])}
+        continue
+      }
+      var SOID = intS.ObjectID
+      Console('  Segment '+n+' is at Span '+SOID)
+      //Check for existing conduit carrying cable
+      var dupeseg = 'N'
+      for (var iC in intCONs) {
+        var DCs = ConvArr(iC.Duct_Content)
+        if (Includes(DCs,Text(CGUID))) {Console('    Already a conduit for this cable here'); if (Count(CONPaths)!=0 && Count(CONPaths[-1])!=0) {Push(CONPaths,[])}; dupeseg = 'Y'; break}
+      }
+      if (dupeseg=='Y') {continue}
+      //Add Points to Paths
+      var Pt0 = [P0['x'],P0['y'],0]
+      var Pt1 = [P1['x'],P1['y'],0]
+      if (Find(Text(Pt0),Text(CONPaths[-1]))<0) {Push(CONPaths[-1],Pt0)}
+      if (Find(Text(Pt1),Text(CONPaths[-1]))<0) {Push(CONPaths[-1],Pt1)}
+      if (intS!=null && Count(intSPs)>0) {Push(CONPaths,[])}
+      //Console('  Conduit Paths:\n  '+CONPaths)
+    }
+    if (error=='Y') {continue}
+    if (Count(CONPaths)!=0 && Count(CONPaths[-1])==0) {Erase(CONPaths,-1)}
+    Console('Conduit Paths:\n'+CONPaths)
+
+    //Turn Paths into conduit features
+    for (var Path in CONPaths) {
+      var P = CONPaths[Path]
+      var CONGeom = Polyline({'hasZ':true,'hasM':false,'paths':[P],'spatialReference':{'wkid':4326}})
+      Console('Path '+Path+': '+CONGeom)
+      var Size = CableCONSizes[Text(CS)][Text(Ct)]
+      var DCt = 1
+      var DMat = 'HDPE'; var DSCH = iif(Size=='4.00','SIDR-11.5','SDR-11')
+      var DCType = C.Network_Type
+      var DC = [Text(CGUID)]
+      var CONdata = {'attributes':{'SUBTYPE_CODE':3,'Duct_Size':Size,'Innerduct_Count':DCt,'Nominal_ID':Size,'Duct_Content_Type':DCType,'Duct_Content':Text(DC),'Duct_Segments':null,'CON_GUID':Upper(Guid()),
+                                   'Status':'Proposed','Placement_Type':'Directional Bore','Conduit_Type':'OSP Conduit','Environment':'Underground','Duct_Material':DMat,'Duct_Schedule':DSCH},
+                     'geometry':CONGeom}
+      Push(CONadds,CONdata)
+    }
+
+    Console('\nNEXT FNAP\n')
+  }
+
+//  Console('CONErrors:\n' + CONErrors)
+//  if (Count(CONErrors)>0) {for (var i in CONErrors) {Push(ERRORS,'Conduit ' + CONErrors[i][0] + ' already contains cable ' + CONErrors[i][1] + ' at Span ' + CONErrors[i][2])}}
+  Console('SpanErrors:\n' + SpanErrors)
+  if (Count(SpanErrors)>0) {Push(ERRORS,'Span arc segment between ([\'Cable OID\',Vertex0-Vertex1]) - No Conduits created for this cable: ' + SpanErrors)}
+
+  Console('\nCONadds: [' + Count(CONadds) + ']')
+  for (var key in CONadds) {Console(key + ':' + CONadds[key])}
+
+  Console('\nERRORS:\n' + ERRORS)
+
+  return {
+    'result':iif(Count(ERRORS)!=0,iif(Count(Text(ERRORS))>5000,Left(Text(ERRORS),4997)+'...',ERRORS),'No Errors'),
+    'edit':[
+      {'className':'Conduit', 
+      'adds':CONadds}
+    ]
+  }
+}",,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Conduit Tools 3,Offset Conduits,CALCULATION,,Conduit_Tools_Rules_3,True,False,False,True,"//Placeholder
+var CONOffs = FeatureSetByName($datastore,'Conduit_Offset',['ObjectID','Related_OID','Related_GUID','Offset_Increment'],true)
+var CONfields = ['OBJECTID','Comments','Project_Name','Work_Order_ID','Project_Stage','Calculated_Length','CON_Length','CON_ID','CON_GUID','Duct_Content_Type','Duct_Content','Duct_Content_Details',
+                 'SUBTYPE_CODE','Conduit_Type','Environment','Placement_Type','Depth','Status','Manufacturer','Duct_Size','Duct_Material','Duct_Schedule','Nominal_OD','Nominal_ID','Fill_Ratio',
+                 'Tracer_Wire','Pull_Tape','Duct_Segments','From_Conduit','To_Conduit','From_Structure','To_Structure','Offset_Side','Offset_Distance','Offset_Increment','Innerduct_Count']
+var CONs = FeatureSetByName($datastore,'Conduit',CONfields,true)
+var Helpers = FeatureSetByName($datastore,'OffsetHelper',['ObjectID','Related_OID','Related_GUID','Offset_Increment'],true)
+
+var ERRORS = []
+
+
+//OFFSET CONDUITS
+if ($feature.Conduit_Tools=='Offset_Conduit') {
+
+  var ECONOffs = {}
+  for (var CO in CONOffs) {
+    ECONOffs[Text(CO.ObjectID)] = [Text(CO.Related_GUID),Round(CO.Offset_Increment,2)]
+  }
+
+  var CONErrors = []
+  var Offadds = []
+  var CONupdates = []
+  for (var C in CONs) {
+    var COID = C.ObjectID; var CGUID = C.CON_GUID; var CID = C.CON_ID
+    var OS = C.Offset_Side; var OD = Number(C.Offset_Distance); var OI = Round(C.Offset_Increment,2)
+    Console('COID: '+COID+' / CID: '+CID)
+    if (CGUID==null) {
+      Console('No CON_GUID assigned.')
+      CGUID = Upper(Guid())
+      Push(CONupdates,{'ObjectID':COID,'attributes':{'CON_GUID':CGUID}})
+    }
+
+    //Pull Geometry from OffsetHelper
+    var Hsql = ""Related_GUID = \'""+Text(CGUID)+""\' AND Offset_Increment = ""+Number(OI)+""""
+    Console('Hsql: ' + Hsql)
+    var CHelpers = Filter(Helpers,Hsql)
+    if (Count(CHelpers)>1) {
+      Console('Not all OffsetHelpers are merged! (One per cable/conduit)')
+      return {'errorMessage':COID+': Not all OffsetHelpers are merged! (One per cable/conduit)'}
+    }
+    if (Count(CHelpers)==0) {
+      Console('No OffsetHelper with matching Related_GUID AND Offset_Increment!')
+      Push(CONErrors,COID)
+      continue
+    }
+    var CHelper = First(CHelpers)
+    var OffGeo = Geometry(CHelper)
+
+    var dupe = 'N'
+    for (var E in ECONOffs) {if (ECONOffs[E][0]==CGUID && ECONOffs[E][1]==Round(OI,2)) {dupe='Y';break}}
+    if (dupe=='Y') {continue}
+    
+    //Set up data to be captured for creating new offset display conduit features.
+    var OffData = {'attributes':{'Related_OID':'','Related_GUID':'','Comments':'','Project_Name':'','Work_Order_ID':'','Project_Stage':'','Calculated_Length':'','CON_Length':'','CON_ID':'','CON_GUID':'','Duct_Content_Type':'','Duct_Content':'',
+       'Duct_Content_Details':'','SUBTYPE_CODE':'','Conduit_Type':'','Environment':'','Placement_Type':'','Depth':'','Status':'','Manufacturer':'','Duct_Size':'','Duct_Material':'','Duct_Schedule':'','Nominal_OD':'',
+       'Nominal_ID':'','Fill_Ratio':'', 'Tracer_Wire':'','Pull_Tape':'','Duct_Segments':'','From_Conduit':'','To_Conduit':'','From_Structure':'','To_Structure':'','Offset_Side':'','Offset_Distance':'',
+       'Offset_Increment':'','Innerduct_Count':'','CON_GUID':''},
+                   'geometry':OffGeo}
+    for (var CONfield in CONfields) {
+      var field = Text(CONfields[CONfield])
+      if (field == 'OBJECTID') {OffData['attributes']['Related_OID'] = Number(C[field]); continue}
+      if (field == 'CON_GUID') {OffData['attributes']['Related_GUID'] = CGUID}
+      else {OffData['attributes'][field] = C[field]}
+    }
+    Push(Offadds,OffData)
+  }
+
+  if (Count(CONErrors)>0) {Push(ERRORS,'No OffsetHelper with matching Related_GUID AND Offset_Increment!: '+CONErrors)}
+
+  Console('\nCONupdates: [' + Count(CONupdates) + ']')
+  for (var key in CONupdates) {Console(key + ':' + CONupdates[key] + '\n')}
+  Console('\nOffadds: [' + Count(Offadds) + ']')
+  for (var key in Offadds) {Console(key + ':' + Offadds[key]['attributes'] + '\n')}
+
+  return {
+    'result':iif(Count(ERRORS)!=0,iif(Count(Text(ERRORS))>5000,Left(Text(ERRORS),4997)+'...',ERRORS),'No Errors'),
+    'edit':[
+      {'className':'Conduit', 
+      'updates':CONupdates},
+      {'className':'Conduit_Offset', 
+      'adds':Offadds}
+    ]
+  }
+}",,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Equipment Tools 1,Place MSTs,CALCULATION,,Equipment_Tools_Rules_1,True,False,False,True,"var UGSTRs = FeatureSetByName($datastore,'UG_Structure',['ObjectID','SUBTYPE_CODE'],true)
+var SAs = FeatureSetByName($datastore,'Serving_Area',['ObjectID','SUBTYPE_CODE'],true)
+var DPs = FeatureSetByName($datastore,'Demand_Point',['ObjectID','SUBTYPE_CODE','PreSplit_Req','Fiber_Allocation'],true)
+var EQs = FeatureSetByName($datastore,'Equipment',['ObjectID','SUBTYPE_CODE','EQUIPMENT_TYPE'],true)
+var MSTs = Filter(EQs,""EQUIPMENT_TYPE = 'MST'"")
+
+var ERRORS = []
+//PLACE MSTS
+if ($feature.Equipment_Tools=='Place_MSTs') {
+  var STRs = Filter(UGSTRs,""SUBTYPE_CODE IN (2,3,4,10,15)"")
+  var SAsEQ = Filter(SAs,""SUBTYPE_CODE = 2"")
+  var Sizes = [4,6,8,12]
+  var MSTSizes = {'4':3,'6':4,'8':5,'12':6}
+  var MSTadds = []
+  var SAErrors = []
+  for (var SA in SAsEQ) {
+    if (Count(Intersects(SA,MSTs))>0) {Console('SA ' + SA.ObjectID + ' already has an MST placed.');continue}
+    Console('SA OID: ' + SA.ObjectID)
+    var intSTRs = Intersects(SA,STRs)
+    var intDPs = Intersects(SA,DPs)
+    var Demand = 0
+    if (Count(intDPs)>0) {for (var DP in intDPs) {
+      Demand += DP.Fiber_Allocation
+    }}
+    var Size
+    for (var n in Sizes) {
+      if (Demand>Sizes[n]) {continue}
+      Size = MSTSizes[Text(Sizes[n])]
+      break
+    }
+    Console('For ' + Demand + ' demand, choose a ' + Sizes[n] + '-Port MST.')
+    var Shortest = null
+    var ShortDist = 10000
+    if (Count(intSTRs)>0) {for (var S in intSTRs) {
+      var SOID = S.ObjectID
+      Console('  STR OID: ' + SOID)
+      var Dist = 0
+      if (Count(intDPs)>0) {for (var DP in intDPs) {
+        Dist += DistanceGeodetic(Geometry(DP),Geometry(S),'feet')
+        Console('    Len: ' + Dist)
+      }}
+      if (Dist<=ShortDist) {ShortDist=Dist;Shortest=[SOID,iif(S.SUBTYPE_CODE==15,'Aerial','Underground'),Geometry(S)]}
+    }}
+    if (Shortest==null) {Push(SAErrors,SA.ObjectID);continue}
+    Console('Place MST here:\n' + Shortest)
+    var MSTdata = {'attributes':{'SUBTYPE_CODE':Size,'ENVIRONMENT':Shortest[1]},'geometry':Shortest[2]}
+    Push(MSTadds,MSTdata)
+    Console('Next SA\n')
+  }
+  if (Count(SAErrors)>0) {Push(ERRORS,'Manually place MSTs in these SAs: ' + SAErrors)}
+  Console('\nMSTadds:')
+  for (var key in MSTadds) {Console(key + ': ' + MSTadds[key])}
+  return {
+    'result':iif(Count(ERRORS)!=0,iif(Count(Text(ERRORS))>5000,Left(Text(ERRORS),4997)+'...',ERRORS),'Review placements and adjust where necessary!'),
+    'edit':[
+      {'className':'Equipment',
+       'adds':MSTadds}
+    ]
+  }
+}",,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Equipment Tools 2,Update Routing/Assignment Helpers,CALCULATION,,Equipment_Tools_Rules_2,True,False,False,True,"var RHelpers = FeatureSetByName($datastore,'RoutingHelper',['*'],true)
+var AHelpers = FeatureSetByName($datastore,'AssignmentHelper',['*'],true)
+
+function ConvArr(fieldval) {
+  var Arr = iif(Find('\""',fieldval)>=0,
+                Split(Replace(Replace(Replace(fieldval,'\""',''),'[',''),']',''),','),
+                Split(Replace(Replace(fieldval,'[',''),']',''),','))
+  Arr = iif(Text(Arr)=='[""""]',[],Arr)
+  return Arr
+}
+
+var ERRORS = []
+
+//UPDATE ROUTING/ASSIGNMENT HELPERS
+if ($feature.Equipment_Tools=='RT_Helpers') {
+  var Order = [1,2,3,4,5]
+  var Rupdates = []
+  var Aupdates = []
+
+  for (var O in Order) {for (var R in RHelpers) {
+    var ST = R.SUBTYPE_CODE
+    if (ST!=Order[O]) {continue}
+    Push(Rupdates,{'ObjectID':R.ObjectID,'attributes':{}})
+    if (Includes([2,3,4],ST)) {Rupdates[-1]['attributes']['FiberStart']=null}
+  }}
+  for (var A in AHelpers) {
+    Push(Aupdates,{'ObjectID':A.ObjectID})
+  }
+
+  return {
+    'result':iif(Count(ERRORS)!=0,iif(Count(Text(ERRORS))>5000,Left(Text(ERRORS),4997)+'...',ERRORS),'No Errors'),
+    'edit':[
+      {'className':'RoutingHelper', 
+      'updates':Rupdates},
+      {'className':'RoutingHelper', 
+      'updates':Rupdates},
+      {'className':'RoutingHelper', 
+      'updates':Rupdates},
+      {'className':'RoutingHelper', 
+      'updates':Rupdates},
+      {'className':'AssignmentHelper', 
+      'updates':Aupdates}
+    ]
+  }
+}",,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Equipment Tools 3,Create Terminal Graphics; Create Slack Loop Graphics,CALCULATION,,Equipment_Tools_Rules_3,True,False,False,True,"var GraPts = FeatureSetByName($datastore,'Graphics_Point',['*'],true)
+var GraTerms = Filter(GraPts,""SUBTYPE_CODE IN (5,18)"")
+var GraSLs = Filter(GraPts,""SUBTYPE_CODE IN (2,3)"")
+var GraLns = FeatureSetByName($datastore,'Graphics_Line',['*'],true)
+var GraPgs = FeatureSetByName($datastore,'Graphics_Polygon',['*'],true)
+var EQs = FeatureSetByName($datastore,'Equipment',['ObjectID','EQUIP_ID','Equip_GUID','EQUIPMENT_TYPE','OUTPUT_PORTS','PON_COUNT','Stub_Length','ROTATION_SYM'],true)
+var Terminals = Filter(EQs,""EQUIPMENT_TYPE IN ('MST','Future Loop')"")
+var SLs = FeatureSetByName($datastore,'Slack_Loop',['ObjectID','SUBTYPE_CODE','SlackLoop_ID','SlackLoop_GUID','Cable_ID','Cable_GUID','Length_Adjustment','Rotation_Sym'],true)
+
+var ERRORS = []
+
+//TERMINAL GRAPHICS
+if ($feature.Equipment_Tools=='Gra_Terms') {
+  var Graadds = []
+  var EQupdates = []
+  for (var T in Terminals) {
+    var TOID = T.ObjectID; var TID = T.EQUIP_ID; var TGUID = iif(T.Equip_GUID==null,Upper(Guid()),T.Equip_GUID)
+    var TPorts = T.OUTPUT_PORTS; var TPON = T.PON_COUNT; var TStub = T.Stub_Length; var TRot = T.ROTATION_SYM%360
+    var TType = T.EQUIPMENT_TYPE
+    if (T.Equip_GUID==null) {Push(EQupdates,{'ObjectID':TOID,'attributes':{'Equip_GUID':TGUID}})}
+    var Map_Use = ['SCH','CD','DT']
+    for (var M in Map_Use) {
+      var MU = Map_Use[M]
+      if (TType=='Future Loop' && MU!='SCH') {continue}
+      var Esql = ""Related_GUID = \'""+Text(TGUID)+""\' AND Map_Use = @MU""
+      var EGras = Filter(GraTerms,Esql)
+      if (Count(EGras)>0) {continue}
+      var Gradata = {'attributes':{'Related_ID':TID,'Related_GUID':TGUID,'SUBTYPE_CODE':iif(TType=='MST',5,18),'Label1':TPorts,'Label2':TPON,'Label3':TStub,'Rotation':TRot,'Map_Use':''},'geometry':Geometry(T)}
+      Gradata['attributes']['Map_Use'] = MU
+      Push(Graadds,Gradata)
+    }
+  }
+
+  Console('\nGraadds: [' + Count(Graadds) + ']')
+  for (var key in Graadds) {Console(key + ':' + Graadds[key])}
+  Console('\nEQupdates: [' + Count(EQupdates) + ']')
+  for (var key in EQupdates) {Console(key + ':' + EQupdates[key])}
+
+  //Console('\nERRORS:\n' + ERRORS)
+
+  return {
+    'result':iif(Count(ERRORS)!=0,iif(Count(Text(ERRORS))>5000,Left(Text(ERRORS),4997)+'...',ERRORS),'No Errors'),
+    'edit':[  
+      {'className':'Graphics_Point', 
+      'adds':Graadds},
+      {'className':'Equipment', 
+      'updates':EQupdates}
+    ]
+  }
+}
+
+//SLACK LOOP GRAPHICS
+if ($feature.Equipment_Tools=='Gra_SLs') {
+  var Graadds = []
+  for (var SL in SLs) {
+    if (SL.SUBTYPE_CODE!=2) {continue}
+    var SLOID = SL.ObjectID; var SLID = SL.SlackLoop_ID; var SLGUID = SL.SlackLoop_GUID; var CID = SL.Cable_ID; var CGUID = SL.Cable_GUID
+    var SLLen = SL.Length_Adjustment; var SLRot = SL.Rotation_Sym%360
+    var Map_Use = ['SCH','CD','DT']
+    for (var M in Map_Use) {
+      var MU = Map_Use[M]
+      if (MU=='SCH') {continue}
+      var Esql = ""Related_GUID = \'""+Text(SLGUID)+""\' AND Map_Use = @MU""
+      var EGras = Filter(GraSLs,Esql)
+      if (Count(EGras)>0) {continue}
+      var Gradata = {'attributes':{'Related_ID':SLID,'Related_GUID':SLGUID,'SUBTYPE_CODE':iif(Includes([15,25],SLLen),3,2),'Label1':SLLen,'Label2':CID,'Label3':CGUID,'Rotation':SLRot,'Map_Use':''},'geometry':Geometry(SL)}
+      Gradata['attributes']['Map_Use'] = MU
+      Push(Graadds,Gradata)
+    }
+  }
+
+  Console('\nGraadds: [' + Count(Graadds) + ']')
+  for (var key in Graadds) {Console(key + ':' + Graadds[key])}
+
+  //Console('\nERRORS:\n' + ERRORS)
+
+  return {
+    'result':iif(Count(ERRORS)!=0,iif(Count(Text(ERRORS))>5000,Left(Text(ERRORS),4997)+'...',ERRORS),'No Errors'),
+    'edit':[  
+      {'className':'Graphics_Point', 
+      'adds':Graadds}
+    ]
+  }
+}",,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Splice Closure Tools 1,-,CALCULATION,,Splice_Closure_Tools_Rules_1,True,False,False,True,//Placeholder,,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Splice Closure Tools 2,Place/Update NAPs and Update EQs with Short Tails,CALCULATION,,Splice_Closure_Tools_Rules_2,True,False,False,True,"var Cables = FeatureSetByName($datastore,'Transmedia',['ObjectID','Cable_ID','GlobalID','Comments','Environment','Cable_Series','Cable_Type','Total_Fibers','Active_Fibers','Active_Starts','Active_Ends','Alignments',
+                                                       'To_Equipment','PON_Count','Fiber_Count','Network_Type','Transmedia_Type','Calculated_Length','To_Equipment','Cable_GUID','SUBTYPE_CODE'],true)
+var Tails = Filter(Cables,""SUBTYPE_CODE = 11"")
+var RHelpers = FeatureSetByName($datastore,'RoutingHelper',['*'],true)
+var RefGeos = Filter(RHelpers,""SUBTYPE_CODE = 5"")
+var AHelpers = FeatureSetByName($datastore,'AssignmentHelper',['*'],true)
+var Splices = FeatureSetByName($datastore,'Splice_Closure',['ObjectID','SUBTYPE_CODE','Total_Splices','Branch_Splices','PON_COUNT','Cables_IN','Cables_OUT','COMMENTS','ENVIRONMENT'],true)
+var EQs = FeatureSetByName($datastore,'Equipment',['ObjectID','OUTPUT_PORTS','STRUCTURE_UNID','ENVIRONMENT','EQUIP_ID'],true)
+var ProjDets = First(FeatureSetByName($datastore,'Project_Details',['*'],true))
+var PFPLoc = iif(Find('TBD',ProjDets.FDA_Location)>=0,null,ProjDets.FDA_Location)
+if (ProjDets==null || PFPLoc==null) {return {'errorMessage':'Ensure Project_Details - FDA_Location field is populated correctly!'}}
+
+function ConvArr(fieldval) {
+  var Arr = iif(Find('\""',fieldval)>=0,
+                Split(Replace(Replace(Replace(fieldval,'\""',''),'[',''),']',''),','),
+                Split(Replace(Replace(fieldval,'[',''),']',''),','))
+  Arr = iif(Text(Arr)=='[""""]',[],Arr)
+  return Arr
+}
+
+var ERRORS = []
+
+//PLACE/UPDATE NAPs AND UPDATE EQs WITH SHORT TAILS
+if ($feature.Splice_Closure_Tools=='Place_NAPs') {
+  var Cableadds = []
+  var Cableupdates = []
+  var EQupdates = []
+  var SPdels = []
+  var SPadds = []
+  var SPupdates = []
+
+  var ETails = {}
+  var EQChecks = []
+  for (var E in Tails) {
+    var PC = E.PON_Count
+    var EToEQs = Intersects((Geometry(E)['paths'][-1][-1]),EQs)
+    if (EToEQs==null) {Console('Tail '+Text(E.ObjectID)+' doesn\'t match it\'s terminal.'); return {'errorMessage':'Tail '+Text(E.ObjectID)+' doesn\'t match it\'s terminal.'}}
+    for (var EQ in EToEQs) {
+      if (Includes(EQChecks,Text(EQ.ObjectID))) {continue}
+      Etails[Text(E.ObjectID)] = [PC,Geometry(E),EQ.ObjectID,E.Cable_GUID]
+      Push(EQChecks,Text(EQ.ObjectID))
+      break
+    }
+  }
+  for (var E in Splices) {
+    var OUTS = E.Cables_OUT
+    if (OUTS==null) {continue}
+    var OUTsql = ""Cable_GUID = @OUTS""
+    var COUTs = Filter(Cables,OUTsql)
+    if (Count(COUTs)==0) {Push(SPdels,{'ObjectID':E.ObjectID})}
+  }
+
+  //Begin Processing of Assignment Polygons
+  for (var A in AHelpers) {
+    if (A.SUBTYPE_CODE==4) {continue}
+
+    var AOID = A.ObjectID; var RHOID = A.RouteID; var RGOID = A.RefGeometry; var ST = A.SUBTYPE_CODE  //IDs
+    var CS = A.Cable_Series; var Env = A.Environment; var TT = A.Transmedia_Type; var CT = A.Cable_Type; var CTone = A.Toneable; var CSt = A.Cable_Structure; var NT = A.Network_Type  //Cable Properties
+    var PONHigh = A.CountStart; var PONLow = A.CountEnd  //Active Counts
+    var FibHigh = A.FiberStart; var FibLow = A.FiberEnd  //Active Fibers
+    var Alloc = Split(A.Allocations,'\n')  //Fiber Allocations
+    Console('Assignment Poly: '+AOID+' || Relates to Route '+RHOID+' / RefGeo '+RGOID)
+    Console('  Cable Details:\n  CS: '+CS+'\n  Env: '+Env+'\n  TT: '+TT+'\n  CT: '+CT+'\n  CTone: '+CTone+'\n  CSt: '+CSt+'\n  NT: '+NT)
+    Console('\n  Allocations:')
+    for (var All in Alloc) {Console('  '+Alloc[All])}
+
+    Console('\n  --BEGIN ASSIGNMENT PROCESSING--\n')
+    for (var All in Alloc) {
+      if (Find('(DEAD)',Alloc[All])>=0 || Find('COMBINE',Alloc[All])>=0) {continue}
+      var Ass = Split(Replace(Replace(Alloc[All],')',''),'(',''),' ')
+      Console('    '+Ass)
+      //Establish initial variables
+      var PONs = Ass[0]; var Fibs = Ass[1]; var Outs = Number(Replace(Replace(Ass[2],']',''),'[','')); var Type = Ass[4]; var FOID = Number(Ass[6])
+      var Tethers = Ceil(Outs/12)
+      var PtGeom = null
+      var CGUID = Upper(Guid())
+
+      //Processing for Equipment assignments
+      if (Includes(['MST','FL'],Type)) {
+        var Feat = First(Filter(EQs,""ObjectID = ""+FOID+""""))
+        var FEnv = iif(Feat.ENVIRONMENT==null,'Aerial',Feat.ENVIRONMENT)
+        var Stub = iif(FEnv!='Aerial',10,10)
+        PtGeom = Geometry(Feat)
+        var EQdata = {'ObjectID':FOID,'attributes':{'PON_COUNT':'PON'+PFPLoc+':'+PONs,'Stub_Length':iif(Type=='FL',null,Text(Stub))}}
+        Push(EQupdates,EQdata)
+        //Move on to next assignment, since Future Loops won't get a TAP/NAP or tail
+        if (Type=='FL') {Console('\n    --\\\n    --NEXT ASSIGNMENT--\n    --/\n'); continue}
+
+        //Create Terminal Tail for co-located NAP and MST
+        var PtBuff = BufferGeodetic(Feat,8,'feet')
+        var EQPts = PtBuff['rings'][0]
+        var CablePath = []
+        Push(CablePath,[PtGeom['x'],PtGeom['y'],0,null])
+        for (var n=2; n<Count(EQPts)-2; n++) {
+          Push(CablePath,[EQPts[n]['x'],EQPts[n]['y'],0,null])
+        }
+        Push(CablePath,[PtGeom['x'],PtGeom['y'],0,null])
+        var TailGeom = Polyline({'hasZ':true,'hasM':true,'paths':[CablePath],'spatialReference':{'wkid':4326}})
+        //Create Fiber Counts for terminal tail
+        var Starts = []; var Ends = []; var TotalF = Number(iif(Stub<=20,12,Outs))
+        Push(Starts,iif(Stub>20,1,1+(12-Outs)/2))
+        Push(Ends,iif(Stub>20,Outs,12-(12-Outs)/2))
+        var FC = iif(Outs==12,'PON'+PFPLoc+':'+PONs,
+                     iif(Stub>20,'PON'+PFPLoc+':'+PONs,
+                         'A:1-'+Text((12-Number(Outs))/2)+';'+'PON'+PFPLoc+':'+PONs+';A:'+Text(12-(12-Number(Outs))/2+1)+'-12'
+                         )
+                     )
+        Console('    Fiber Counts: ' + FC)
+        var Cabledata = {'attributes':{'SUBTYPE_CODE':11,'Environment':FEnv,'Adjusted_Length':Stub,'Order_Length':Text(Stub)+'\'','Cable_ID':Feat.EQUIP_ID,'Total_Fibers':TotalF,
+                                       'Active_Fibers':Outs,'Active_Starts':Text(Starts),'Active_Ends':Text(Ends),'Fiber_Count':FC,'PON_Count':'PON'+PFPLoc+':'+PONs,'Cable_GUID':CGUID},
+                         'geometry':TailGeom}
+        //Console('    '+Cabledata['attributes'])
+
+        //Check for existing tail before creating new one
+        var dupe = 'N'
+        for (var key in ETails) {
+          if (ETails[key][2]==FOID) {
+            dupe='Y'
+            Cabledata['attributes']['Cable_GUID']=ETails[key][3]
+            CGUID = ETails[key][3]
+            Cabledata['ObjectID']=Number(key)
+            break
+          }
+        }
+        Push(iif(dupe=='N',Cableadds,Cableupdates),Cabledata)
+      }
+
+      //Processing for lateral cable assignments
+      if (!Includes(['MST','FL'],Type)) {
+        var RGFeat = First(Filter(AHelpers,""RouteID = ""+FOID+"""")).RefGeometry
+        var Feat = First(Filter(RefGeos,""ObjectID = ""+RGFeat+""""))
+        CGUID = Feat.Cable_GUID
+        PtGeom = Geometry(Feat)['paths'][0][0]
+      }
+
+      //Set up attributes for Splice or TAP/NAP
+      //Determine is Fiber Range is on ALTOS 216 and bridges fibers 72-73 and, if so, split into two splices if connection is tethered.
+      var SPrngs = [[Tethers,PONs]]
+      if (CS=='ALTOS' && FibHigh==216 && Type!='Lat') {
+        var FibsLow = Number(Split(Fibs,'-')[0]); var FibsHigh = Number(Split(Fibs,'-')[1])
+        var PONsLow = Number(Split(PONs,'-')[0]); var PONsHigh = Number(Split(PONs,'-')[1])
+        //var FibsLow = 61; var FibsHigh = 96  //Use this line to test
+        if ((FibsLow<=72 && 72<FibsHigh) && (FibsLow<73 && 73<=FibsHigh)) {
+          var LowAdj = 72-FibsLow; var HighAdj = FibsHigh-73
+          var LowTeth = Ceil((LowAdj+1)/12); var HighTeth = Ceil((HighAdj+1)/12)
+          var LowRng = Text(PONsLow)+'-'+Text(PONsLow+LowAdj)
+          var HighRng = Text(PONsHigh-HighAdj)+'-'+Text(PONsHigh)
+          Console(FibsLow+' / '+FibsHigh)
+          Console(LowRng+'\n'+HighRng)
+          SPrngs = [[LowTeth,LowRng],[HighTeth,HighRng]]
+        }
+      }
+      //Determine is tether count exceeds 2 (24 fibers) and, if so, split into two NAPs if connection is tethered.
+      if (Includes(['SRT','DRT','TRT','QRT'],Type)) {for (var SPrng in SPrngs) {
+        var rng = SPrngs[SPrng]
+        if (2<rng[0] && rng[0]<=4) {
+          var PONsLow = Number(Split(rng[1],'-')[0]); var PONsHigh = Number(Split(rng[1],'-')[1])
+          var LowAdj = 24-1; var HighAdj = ((rng[0]-2)*12)-1
+          var LowTeth = Ceil((LowAdj+1)/12); var HighTeth = Ceil((HighAdj+1)/12)
+          var LowRng = Text(PONsLow)+'-'+Text(PONsLow+LowAdj)
+          var HighRng = Text(PONsHigh-HighAdj)+'-'+Text(PONsHigh)
+          Console('\n      '+LowRng+'\n      '+HighRng)
+          Insert(SPrngs,SPrng,[HighTeth,HighRng])
+          Insert(SPrngs,SPrng,[LowTeth,LowRng])
+          Erase(SPrngs,-1)
+        }
+      }}
+
+      var dupesql = ""Cables_OUT = @CGUID""
+      var dupe = 'N'
+      var dupedata = []
+      var dupes = Filter(Splices,dupesql)
+      if (Count(dupes)>0) {dupe = 'Y'}
+      for (var SP in dupes) {Push(dupedata,SP.ObjectID)}
+      //If there are existing splices, this section handles updating/adding/deleting them as necessary
+      if (dupe=='Y') {
+        Console('      '+Count(dupedata)+' Dupe(s) found: '+dupedata)
+        Console('      '+Count(SPrngs)+' New SPs: '+SPrngs)
+        //If there are the same number of existing splices as there are new splices
+        if (Count(dupes)==Count(SPrngs)) {
+          for (var SPrng in SPrngs) {
+            var rng = SPrngs[SPrng]
+            var SPdata = {'attributes':{'SUBTYPE_CODE':iif(Type=='Lat',3,7),'ENVIRONMENT':Env,'PON_COUNT':'PON'+PFPLoc+':'+rng[1],'Cables_IN':A.Cable_GUID,'Cables_OUT':CGUID,
+                                        'Total_Splices':rng[0],'Ribbon_Splices':rng[0],'Total_Ribbon_Splice_Trays':Ceil(rng[0]/12)},
+                          'geometry':PtGeom}
+            Console('      Dupes equal new SPs')
+            SPdata['ObjectID']=dupedata[SPrng]
+            Push(SPupdates,SPdata)
+          }
+        }
+        //If there are more new splices than existing
+        if (Count(dupes)<Count(SPrngs)) {
+          Console('      Less Dupes than new SPs')
+          for (var i=0; i<Count(SPrngs); i++) {
+            Console('\n        i = '+i)
+            var rng = SPrngs[i]
+            var SPdata = {'attributes':{'SUBTYPE_CODE':iif(Type=='Lat',3,7),'ENVIRONMENT':Env,'PON_COUNT':'PON'+PFPLoc+':'+rng[1],'Cables_IN':A.Cable_GUID,'Cables_OUT':CGUID,
+                                        'Total_Splices':rng[0],'Ribbon_Splices':rng[0],'Total_Ribbon_Splice_Trays':Ceil(rng[0]/12)},
+                          'geometry':PtGeom}
+            if (i<Count(dupes)) {
+              SPdata['ObjectID']=dupedata[i]
+              Push(SPupdates,SPdata)
+            }
+            if (i>=Count(dupes)) {
+              Push(SPadds,SPdata)
+            }
+          }
+        }
+        //If there are more existing splices than new
+        if (Count(dupes)>Count(SPrngs)) {
+          Console('      More Dupes than new SPs')
+          for (var i=0; i<Count(dupes); i++) {
+            Console('\n        i = '+i)
+            var rng = SPrngs[i]
+            var SPdata = {'attributes':{'SUBTYPE_CODE':iif(Type=='Lat',3,7),'ENVIRONMENT':Env,'PON_COUNT':'PON'+PFPLoc+':'+rng[1],'Cables_IN':A.Cable_GUID,'Cables_OUT':CGUID,
+                                        'Total_Splices':rng[0],'Ribbon_Splices':rng[0],'Total_Ribbon_Splice_Trays':Ceil(rng[0]/12)},
+                          'geometry':PtGeom}
+            if (i<Count(SPrngs)) {
+              SPdata['ObjectID']=dupedata[i]
+              Push(SPupdates,SPdata)
+            }
+            if (i>=Count(SPrngs)) {
+              Push(SPdels,{'ObjectID':dupedata[i]})
+            }
+          }
+        }
+      }
+      //If all splices are new
+      if (dupe=='N') {
+        for (var SPrng in SPrngs) {
+          var rng = SPrngs[SPrng]
+          var SPdata = {'attributes':{'SUBTYPE_CODE':iif(Type=='Lat',3,7),'ENVIRONMENT':Env,'PON_COUNT':'PON'+PFPLoc+':'+rng[1],'Cables_IN':A.Cable_GUID,'Cables_OUT':CGUID,
+                                      'Total_Splices':rng[0],'Ribbon_Splices':rng[0],'Total_Ribbon_Splice_Trays':Ceil(rng[0]/12)},
+                        'geometry':PtGeom}
+          Push(SPadds,SPdata)
+        }
+      }
+      Console('\n    --\\\n    --NEXT ASSIGNMENT--\n    --/\n')
+    }
+  }
+
+  //if (Count(CableErrors)>0) {Push(ERRORS,'These MSTs\' Tails weren\'t created: ' + CableErrors)}
+  //if (Count(LenErrors)>0) {Push(ERRORS,'These MSTs will be >' + TailMAX + '\' from splice: ' + LenErrors)}
+
+  Console('\nEQupdates: [' + Count(EQupdates) + ']')
+  for (var key in EQupdates) {Console(key + ':' + EQupdates[key])}
+  Console('\nSPdels: [' + Count(SPdels) + ']')
+  for (var key in SPdels) {Console(key + ':' + SPdels[key])}
+  Console('\nSPadds: [' + Count(SPadds) + ']')
+  for (var key in SPadds) {Console(key + ':' + SPadds[key])}
+  Console('\nSPupdates: [' + Count(SPupdates) + ']')
+  for (var key in SPupdates) {Console(key + ':' + SPupdates[key])}
+  Console('\nCableadds: [' + Count(Cableadds) + ']')
+  for (var key in Cableadds) {Console(key + ':' + Cableadds[key])}
+  Console('\nCableupdates: [' + Count(Cableupdates) + ']')
+  for (var key in Cableupdates) {Console(key + ':' + Cableupdates[key])}
+
+  Console('\nERRORS:\n' + ERRORS)
+
+  return {
+    'result':iif(Count(ERRORS)!=0,iif(Count(Text(ERRORS))>5000,Left(Text(ERRORS),4997)+'...',ERRORS),'No Errors'),
+    'edit':[
+      {'className':'Equipment', 
+      'updates':EQupdates},
+      {'className':'Splice_Closure', 
+      'deletes':SPdels},
+      {'className':'Splice_Closure', 
+      'adds':SPadds},
+      {'className':'Splice_Closure', 
+      'updates':SPupdates},
+      {'className':'Transmedia', 
+      'adds':Cableadds},
+      {'className':'Transmedia', 
+      'updates':Cableupdates}
+    ]
+  }
+}",,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Splice Closure Tools 3,,CALCULATION,,Splice_Closure_Tools_Rules_3,True,False,False,True,//Placeholder,,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+General Tool Reset,,CALCULATION,,General_Tools,True,False,False,True,"if ($feature.General_Tools != 'Standby') {
+    return 'Standby'
+}",,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Demand Point Tool Reset,,CALCULATION,,Demand_Point_Tools,True,False,False,True,"if ($feature.Demand_Point_Tools != 'Standby') {
+    return 'Standby'
+}",,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Span Tool Reset,,CALCULATION,,Span_Tools,True,False,False,True,"if ($feature.Span_Tools != 'Standby') {
+    return 'Standby'
+}",,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Pole Tool Reset,,CALCULATION,,Pole_Tools,True,False,False,True,"if ($feature.Pole_Tools != 'Standby') {
+    return 'Standby'
+}",,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+UG Structure Tool Reset,,CALCULATION,,UG_Structure_Tools,True,False,False,True,"if ($feature.UG_Structure_Tools != 'Standby') {
+    return 'Standby'
+}",,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Dimensions Tool Reset,,CALCULATION,,Dimensions_Tools,True,False,False,True,"if ($feature.Dimensions_Tools != 'Standby') {
+    return 'Standby'
+}",,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Transmedia Tool Reset,,CALCULATION,,Transmedia_Tools,True,False,False,True,"if ($feature.Transmedia_Tools != 'Standby') {
+    return 'Standby'
+}",,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Strand Tool Reset,,CALCULATION,,Strand_Tools,True,False,False,True,"if ($feature.Strand_Tools != 'Standby') {
+    return 'Standby'
+}",,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Conduit Tool Reset,,CALCULATION,,Conduit_Tools,True,False,False,True,"if ($feature.Conduit_Tools != 'Standby') {
+    return 'Standby'
+}",,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Equipment Tool Reset,,CALCULATION,,Equipment_Tools,True,False,False,True,"if ($feature.Equipment_Tools != 'Standby') {
+    return 'Standby'
+}",,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Splice Closure Tool Reset,,CALCULATION,,Splice_Closure_Tools,True,False,False,True,"if ($feature.Splice_Closure_Tools != 'Standby') {
+    return 'Standby'
+}",,,True,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"

@@ -1,0 +1,8 @@
+﻿NAME,DESCRIPTION,TYPE,SUBTYPE,FIELD,ISEDITABLE,TRIGGERINSERT,TRIGGERDELETE,TRIGGERUPDATE,SCRIPTEXPRESSION,ERRORNUMBER,ERRORMESSAGE,EXCLUDECLIENTEVALUATION,ISENABLED,BATCH,SEVERITY,TAGS,CATEGORY,CHECKPARAMETERS
+FDA UNID,Calculate UNID of FDA,CALCULATION,,UNID,True,True,False,True,"If ($feature.GlobalID != Null){
+return ""FDA::"" + Upper(right(split($feature.GlobalID,""-"")[0],4))
+}",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Total_Demand,Set TOTAL_DEMAND equal to number of Demand Points within polygon,CALCULATION,,TOTAL_DEMAND_POINTS,True,True,False,True,"var DP = FeatureSetByName($datastore,""Demand_Point"",[""Address""],true)
+var intDP = intersects((DP), Geometry($feature));
+var totalDP = count(intDP)
+return iif(IsEmpty(totalDP), null, totalDP);",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"

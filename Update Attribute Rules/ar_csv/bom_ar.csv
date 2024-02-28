@@ -1,0 +1,358 @@
+﻿NAME,DESCRIPTION,TYPE,SUBTYPE,FIELD,ISEDITABLE,TRIGGERINSERT,TRIGGERDELETE,TRIGGERUPDATE,SCRIPTEXPRESSION,ERRORNUMBER,ERRORMESSAGE,EXCLUDECLIENTEVALUATION,ISENABLED,BATCH,SEVERITY,TAGS,CATEGORY,CHECKPARAMETERS
+Item Part Number,,CALCULATION,Preset,itemPartNum,True,True,False,True,"var Units = {'Point':'ea','Line':'ft'}
+var ProjDets = First(FeatureSetByName($datastore,'Project_Details',['Project_Name'],true))
+var Project = ProjDets.Project_Name
+var ItemData = FeatureSetByName($datastore,'BOM_ItemData',['*'],true)
+
+var itemDesc = Text($feature.itemDesc)
+var itemsql = ""itemDesc = @itemDesc""
+var Data = First(Filter(ItemData,itemsql))
+if (Data==null) {return $feature.itemCount}
+
+return Data.itemPartNum",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Item Material Cost,,CALCULATION,Preset,itemCostUnit,True,True,False,True,"var Units = {'Point':'ea','Line':'ft'}
+var ProjDets = First(FeatureSetByName($datastore,'Project_Details',['Project_Name'],true))
+var Project = ProjDets.Project_Name
+var ItemData = FeatureSetByName($datastore,'BOM_ItemData',['*'],true)
+
+var itemDesc = Text($feature.itemDesc)
+var itemsql = ""itemDesc = @itemDesc""
+var Data = First(Filter(ItemData,itemsql))
+if (Data==null) {return $feature.itemCount}
+
+return Data.itemCostUnit",,,False,True,False,,,,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Item Unit,,CALCULATION,Preset,itemUnit,True,True,False,True,"var Units = {'Point':'ea','Line':'ft'}
+var ProjDets = First(FeatureSetByName($datastore,'Project_Details',['Project_Name'],true))
+var Project = ProjDets.Project_Name
+var ItemData = FeatureSetByName($datastore,'BOM_ItemData',['*'],true)
+var itemDesc = Text($feature.itemDesc)
+var itemsql = ""itemDesc = @itemDesc""
+var Data = First(Filter(ItemData,itemsql))
+if (Data==null) {return $feature.itemCount}
+var itemType = Data.itemType
+return Units[Text(itemType)]",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Item Count,,CALCULATION,Preset,itemCount,True,True,False,True,"var ProjDets = FeatureSetByName($datastore,'Project_Details',['*'],true)
+var Project = First(ProjDets).Project_Name
+var GndMult = Number(First(ProjDets).SoilRes_GndMult)
+var ItemData = FeatureSetByName($datastore,'BOM_ItemData',['*'],true)
+function BOMcalc(Set,FeatureType,SumField){
+  return Count(Set)
+}
+var itemDesc = Text($feature.itemDesc)
+var itemsql = ""itemDesc = @itemDesc""
+var Data = First(Filter(ItemData,itemsql))
+if (Data==null) {return $feature.itemCount}
+var itemType = Text(Data.itemType)
+var Class = Text(Data.itemFC)
+var sql = Text(Data.itemQuery)
+var LineFields = iif(Class=='Transmedia',['ObjectID','Adjusted_Length'],['ObjectID','CALCULATED_LENGTH'])
+var PointFields = iif(Class=='Slack_Loop',['ObjectID','Cable_GUID','Length_Adjustment'],['ObjectID'])
+var fields = iif(itemType=='Line',LineFields,PointFields)
+Console(itemDesc + '\n' + Class + '\n' + sql)
+var nonQ = ['BRACKET PLP SLACKLOOP 20IN ALUMINUM FIBER STORAGE','BRACKET PLP SLACKLOOP 30IN ALUMINUM FIBER STORAGE','WIRE TRACER ORANGE TRACE SAFE','Rod Ground CU 5/8inx8ft UL']
+var reqSpatial = 'N'
+if (Includes(nonQ,itemDesc)) {reqSpatial='Y'}
+//Establish baseline queried FeatureSets
+var FS
+//Conduit
+if (Class=='Conduit') {
+  FS = Filter(FeatureSetByName($datastore,'Conduit',fields,true),sql)
+  if (reqSpatial=='N') {return BOMcalc(FS,itemType,'CALCULATED_LENGTH')}
+}
+//Strand
+if (Class=='Strand') {
+  FS = Filter(FeatureSetByName($datastore,'Strand',fields,true),sql)
+  if (reqSpatial=='N') {return BOMcalc(FS,itemType,'CALCULATED_LENGTH')}
+}
+//Demand_Point
+if (Class=='Demand_Point') {
+  FS = Filter(FeatureSetByName($datastore,'Demand_Point',fields,true),sql)
+  if (reqSpatial=='N') {return BOMcalc(FS,itemType,'CALCULATED_LENGTH')}
+}
+//Equipment
+if (Class=='Equipment') {
+  FS = Filter(FeatureSetByName($datastore,'Equipment',fields,true),sql)
+  if (reqSpatial=='N') {return BOMcalc(FS,itemType,'CALCULATED_LENGTH')}
+}
+//Pole
+if (Class=='Pole') {
+  FS = Filter(FeatureSetByName($datastore,'Pole',fields,true),sql)
+  if (reqSpatial=='N') {return BOMcalc(FS,itemType,'CALCULATED_LENGTH')}
+}
+//Span
+if (Class=='Span') {
+  FS = Filter(FeatureSetByName($datastore,'Span',fields,true),sql)
+  if (reqSpatial=='N') {return BOMcalc(FS,itemType,'CALCULATED_LENGTH')}
+}
+//Splice_Closure
+if (Class=='Splice_Closure') {
+  FS = Filter(FeatureSetByName($datastore,'Splice_Closure',fields,true),sql)
+  if (reqSpatial=='N') {return BOMcalc(FS,itemType,'CALCULATED_LENGTH')}
+}
+//Transmedia
+if (Class=='Transmedia') {
+  FS = Filter(FeatureSetByName($datastore,'Transmedia',fields,true),sql)
+  if (reqSpatial=='N') {return BOMcalc(FS,itemType,'Adjusted_Length')}
+}
+//UG_Structure
+if (Class=='UG_Structure') {
+  FS = Filter(FeatureSetByName($datastore,'UG_Structure',fields,true),sql)
+  if (reqSpatial=='N') {return BOMcalc(FS,itemType,'CALCULATED_LENGTH')}
+}
+//Slack_Loop
+if (Class=='Slack_Loop') {
+  FS = Filter(FeatureSetByName($datastore,'Slack_Loop',fields,true),sql)
+  if (reqSpatial=='N') {return BOMcalc(FS,itemType,'CALCULATED_LENGTH')}
+}
+//Graphics_Point
+if (Class=='Graphics_Point') {
+  FS = Filter(FeatureSetByName($datastore,'Graphics_Point',fields,true),sql)
+  if (reqSpatial=='N') {return BOMcalc(FS,itemType,'CALCULATED_LENGTH')}
+}
+//Graphics_Line
+if (Class=='Graphics_Line') {
+  FS = Filter(FeatureSetByName($datastore,'Graphics_Line',fields,true),sql)
+  if (reqSpatial=='N') {return BOMcalc(FS,itemType,'CALCULATED_LENGTH')}
+}
+//Additional Processing for those that require Spatial checks
+if (itemDesc=='BRACKET PLP SLACKLOOP 20IN ALUMINUM FIBER STORAGE') {
+  var Ct = 0
+  for (var F in FS) {
+    Console(F.ObjectID)
+    var RelCable = First(Filter(FeatureSetByName($datastore,'Transmedia',['SUBTYPE_CODE','Cable_GUID','Total_Fibers'],true),""Cable_GUID = \'""+Text(F.Cable_GUID)+""\'""))
+    if (RelCable==null) {continue}
+    var ST = RelCable.SUBTYPE_CODE; var TotFib = RelCable.Total_Fibers
+    if ((ST==8 && TotFib>=144) || (Includes([4,5],ST) && TotFib>=1728)) {continue}
+    if (Includes([15,25],F.Length_Adjustment)) {continue}
+    Ct++
+  }
+  return Ct
+}
+if (itemDesc=='BRACKET PLP SLACKLOOP 30IN ALUMINUM FIBER STORAGE') {
+  var Ct = 0
+  for (var F in FS) {
+    Console(F.ObjectID)
+    var RelCable = First(Filter(FeatureSetByName($datastore,'Transmedia',['SUBTYPE_CODE','Cable_GUID','Total_Fibers'],true),""Cable_GUID = \'""+Text(F.Cable_GUID)+""\'""))
+    if (RelCable==null) {continue}
+    var ST = RelCable.SUBTYPE_CODE; var TotFib = RelCable.Total_Fibers
+    if ((ST==8 && TotFib>=144) || (Includes([4,5],ST) && TotFib>=1728)) {Ct++}
+  }
+  return Ct
+}
+if (itemDesc=='WIRE TRACER ORANGE TRACE SAFE') {
+  var Ct = 0
+  for (var F in FS) {
+    Console(F.ObjectID)
+    var intnonDrops = Within(F,Filter(FeatureSetByName($datastore,'Transmedia',fields,true),""SUBTYPE_CODE <> 12""))
+    var CableCt = Count(intnonDrops)
+    if (CableCt>0) {Ct++}
+  }
+  return Ct
+}
+if (itemDesc=='Rod Ground CU 5/8inx8ft UL') {
+  var Ct = 0
+  for (var F in FS) {
+    Console(F.ObjectID)
+    Ct += GndMult
+  }
+  return Ct
+}",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Item Quantity,,CALCULATION,Preset,itemQty,True,True,False,True,"var ProjDets = FeatureSetByName($datastore,'Project_Details',['*'],true)
+var Project = First(ProjDets).Project_Name
+var GndMult = Number(First(ProjDets).SoilRes_GndMult)
+var ItemData = FeatureSetByName($datastore,'BOM_ItemData',['*'],true)
+function BOMcalc(Set,FeatureType,SumField){
+  if (FeatureType=='Line') {
+    var cumlen = 0
+    for (var F in Set) {
+      cumlen+=F[SumField]
+    }
+    return Ceil(cumlen)
+  }
+  if (FeatureType=='Point') {
+    return Count(Set)
+  }
+}
+var itemDesc = Text($feature.itemDesc)
+var itemsql = ""itemDesc = @itemDesc""
+var Data = First(Filter(ItemData,itemsql))
+if (Data==null) {return $feature.itemCount}
+var itemType = Text(Data.itemType)
+var Class = Text(Data.itemFC)
+var sql = Text(Data.itemQuery)
+var LineFields = iif(Class=='Transmedia',['ObjectID','Adjusted_Length'],['ObjectID','CALCULATED_LENGTH'])
+var PointFields = iif(Class=='Slack_Loop',['ObjectID','Cable_GUID','Length_Adjustment'],['ObjectID'])
+var fields = iif(itemType=='Line',LineFields,PointFields)
+Console(itemDesc + '\n' + Class + '\n' + sql)
+var nonQ = ['BRACKET PLP SLACKLOOP 20IN ALUMINUM FIBER STORAGE','BRACKET PLP SLACKLOOP 30IN ALUMINUM FIBER STORAGE','WIRE TRACER ORANGE TRACE SAFE','Rod Ground CU 5/8inx8ft UL']
+var reqSpatial = 'N'
+if (Includes(nonQ,itemDesc)) {reqSpatial='Y'}
+//Establish baseline queried FeatureSets
+var FS
+//Conduit
+if (Class=='Conduit') {
+  FS = Filter(FeatureSetByName($datastore,'Conduit',fields,true),sql)
+  if (reqSpatial=='N') {return BOMcalc(FS,itemType,'CALCULATED_LENGTH')}
+}
+//Strand
+if (Class=='Strand') {
+  FS = Filter(FeatureSetByName($datastore,'Strand',fields,true),sql)
+  if (reqSpatial=='N') {return BOMcalc(FS,itemType,'CALCULATED_LENGTH')}
+}
+//Demand_Point
+if (Class=='Demand_Point') {
+  FS = Filter(FeatureSetByName($datastore,'Demand_Point',fields,true),sql)
+  if (reqSpatial=='N') {return BOMcalc(FS,itemType,'CALCULATED_LENGTH')}
+}
+//Equipment
+if (Class=='Equipment') {
+  FS = Filter(FeatureSetByName($datastore,'Equipment',fields,true),sql)
+  if (reqSpatial=='N') {return BOMcalc(FS,itemType,'CALCULATED_LENGTH')}
+}
+//Pole
+if (Class=='Pole') {
+  FS = Filter(FeatureSetByName($datastore,'Pole',fields,true),sql)
+  if (reqSpatial=='N') {return BOMcalc(FS,itemType,'CALCULATED_LENGTH')}
+}
+//Span
+if (Class=='Span') {
+  FS = Filter(FeatureSetByName($datastore,'Span',fields,true),sql)
+  if (reqSpatial=='N') {return BOMcalc(FS,itemType,'CALCULATED_LENGTH')}
+}
+//Splice_Closure
+if (Class=='Splice_Closure') {
+  FS = Filter(FeatureSetByName($datastore,'Splice_Closure',fields,true),sql)
+  if (reqSpatial=='N') {return BOMcalc(FS,itemType,'CALCULATED_LENGTH')}
+}
+//Transmedia
+if (Class=='Transmedia') {
+  FS = Filter(FeatureSetByName($datastore,'Transmedia',fields,true),sql)
+  if (reqSpatial=='N') {return BOMcalc(FS,itemType,'Adjusted_Length')}
+}
+//UG_Structure
+if (Class=='UG_Structure') {
+  FS = Filter(FeatureSetByName($datastore,'UG_Structure',fields,true),sql)
+  if (reqSpatial=='N') {return BOMcalc(FS,itemType,'CALCULATED_LENGTH')}
+}
+//Slack_Loop
+if (Class=='Slack_Loop') {
+  FS = Filter(FeatureSetByName($datastore,'Slack_Loop',fields,true),sql)
+  if (reqSpatial=='N') {return BOMcalc(FS,itemType,'CALCULATED_LENGTH')}
+}
+//Graphics_Point
+if (Class=='Graphics_Point') {
+  FS = Filter(FeatureSetByName($datastore,'Graphics_Point',fields,true),sql)
+  if (reqSpatial=='N') {return BOMcalc(FS,itemType,'CALCULATED_LENGTH')}
+}
+//Graphics_Line
+if (Class=='Graphics_Line') {
+  FS = Filter(FeatureSetByName($datastore,'Graphics_Line',fields,true),sql)
+  if (reqSpatial=='N') {return BOMcalc(FS,itemType,'CALCULATED_LENGTH')}
+}
+//Additional Processing for those that require Spatial checks
+if (itemDesc=='BRACKET PLP SLACKLOOP 20IN ALUMINUM FIBER STORAGE') {
+  var Ct = 0
+  for (var F in FS) {
+    Console(F.ObjectID)
+    var RelCable = First(Filter(FeatureSetByName($datastore,'Transmedia',['SUBTYPE_CODE','Cable_GUID','Total_Fibers'],true),""Cable_GUID = \'""+Text(F.Cable_GUID)+""\'""))
+    if (RelCable==null) {continue}
+    var ST = RelCable.SUBTYPE_CODE; var TotFib = RelCable.Total_Fibers
+    if ((ST==8 && TotFib>=144) || (Includes([4,5],ST) && TotFib>=1728)) {continue}
+    if (Includes([15,25],F.Length_Adjustment)) {continue}
+    Ct++
+  }
+  return Ct
+}
+if (itemDesc=='BRACKET PLP SLACKLOOP 30IN ALUMINUM FIBER STORAGE') {
+  var Ct = 0
+  for (var F in FS) {
+    Console(F.ObjectID)
+    var RelCable = First(Filter(FeatureSetByName($datastore,'Transmedia',['SUBTYPE_CODE','Cable_GUID','Total_Fibers'],true),""Cable_GUID = \'""+Text(F.Cable_GUID)+""\'""))
+    if (RelCable==null) {continue}
+    var ST = RelCable.SUBTYPE_CODE; var TotFib = RelCable.Total_Fibers
+    if ((ST==8 && TotFib>=144) || (Includes([4,5],ST) && TotFib>=1728)) {Ct++}
+  }
+  return Ct
+}
+
+if (itemDesc=='WIRE TRACER ORANGE TRACE SAFE') {
+  var Cumlen = 0
+  for (var F in FS) {
+    Console(F.ObjectID)
+    var intnonDrops = Within(F,Filter(FeatureSetByName($datastore,'Transmedia',fields,true),""SUBTYPE_CODE <> 12""))
+    var CableCt = Count(intnonDrops)
+    if (CableCt>0) {Cumlen+=Ceil(F.CALCULATED_LENGTH)}
+  }
+  return Cumlen
+}
+if (itemDesc=='Rod Ground CU 5/8inx8ft UL') {
+  var Ct = 0
+  for (var F in FS) {
+    Console(F.ObjectID)
+    Ct += GndMult
+  }
+  return Ct
+}",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Item Total Cost,,CALCULATION,Preset,itemCostTotal,True,True,False,True,"if ($feature.itemCostUnit==null) {return null}
+var TotalCost = Number($feature.itemQty)*Number($feature.itemCostUnit)
+return TotalCost",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Subtotal,,CALCULATION,Total,itemCostTotal,True,True,False,True,"var OID = Number($feature.OBJECTID)
+var IQ = Text($feature.itemQuery)
+//IQ = '1-5;8;10-12'
+if ($feature.itemQuery==null || Includes(['',' '],$feature.itemQuery)) {
+  var items = Filter(FeatureSetByName($datastore,'BOM',['ObjectID','itemCostTotal']),""ObjectID <> @OID AND SUBTYPE_CODE <> 2"")
+  var Total = 0
+  for (var i in items) {
+    var amt = iif(i.itemCostTotal==null,0,i.itemCostTotal)
+    Console('Adding item ' + i.ObjectID + ' [' + amt + '] to total. (' + Total + ')')
+    Total += amt
+  }
+  return Total
+}
+var Subtotals = Split(IQ,';')
+var Total = 0
+for (var Range in Subtotals) {
+  var R = Subtotals[Range]
+  var R0 = Number(iif(Find('-',R)>=0,Split(R,'-')[0],R))
+  var R1 = Number(iif(Find('-',R)>=0,Split(R,'-')[1],R))
+  for (var n=R0; n<=R1; n++) {
+    var item = First(Filter(FeatureSetByName($datastore,'BOM',['ObjectID','itemCostTotal']),""ObjectID = @n""))
+    if (item==null) {continue}
+    var amt = iif(item.itemCostTotal==null,0,item.itemCostTotal)
+    Console('Adding item ' + n + ' [' + amt + '] to total. (' + Total + ')')
+    Total += amt
+  }
+}
+return Total",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Custom Total Cost,,CALCULATION,Custom,itemCostTotal,True,True,False,True,"if ($feature.itemCostUnit==null) {return null}
+var TotalCost = Number($feature.itemQty)*Number($feature.itemCostUnit)
+return TotalCost",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Formatted Unit Cost,,CALCULATION,,FormattedCostUnit,True,True,False,True,"if ($feature.itemCostUnit==null || Includes(['',' '],$feature.itemCostUnit)) {return '-'}
+return Text($feature.itemCostUnit, '$#,###.00')",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Formatted Labor Cost,,CALCULATION,,FormattedCostLabor,True,True,False,True,"if ($feature.itemCostLabor==null || Includes(['',' '],$feature.itemCostLabor)) {return '-'}
+return Text($feature.itemCostLabor, '$#,###.00')",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Formatted Total Cost,,CALCULATION,,FormattedCostTotal,True,True,False,True,"if ($feature.itemCostTotal==null || Includes(['',' '],$feature.itemCostTotal)) {return '-'}
+var Total = ""<BOL>"" + Text($feature.itemCostTotal, '$#,###.00') + ""</BOL>""
+if ($feature.SUBTYPE_CODE==2) {
+  if ($feature.itemDesc==null || Includes(['',' '],$feature.itemDesc) || Find('-',$feature.itemDesc)>=0) {
+    Total = ""<BGD alpha='50' red='245' green='245' blue='45'>"" + Total + ""</BGD>""
+  } else {
+    Total = ""<BGD alpha='50' red='0' green='255' blue='0'>"" + Total + ""</BGD>""
+  }
+}
+return Total",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Total Description Bolding,,CALCULATION,Total,itemDesc,True,True,False,True,"if ($feature.itemDesc==null || Includes(['',' '],$feature.itemDesc)) {return null}
+else {
+  if (Find('BOL',$feature.itemDesc)<0) {
+    return ""<BOL>"" + $feature.itemDesc + ""</BOL>""
+  } else {return $feature.itemDesc}
+}",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Header Description Bolding,,CALCULATION,Header,itemDesc,True,True,False,True,"if ($feature.itemDesc==null || Includes(['',' '],$feature.itemDesc)) {return null}
+else {
+  if (Find('BOL',$feature.itemDesc)<0) {
+    return ""<BOL>"" + $feature.itemDesc + ""</BOL>""
+  } else {return $feature.itemDesc}
+}",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"
+Date Collected,,CALCULATION,,Date_Collected,True,True,False,True,"if ($feature.SUBTYPE_CODE==4) {return '-'}
+Console(Text(Timestamp(),'MM/DD/YYYY'))
+return Text(Timestamp(),'MM/DD/YYYY')",,,False,True,False,,,0,"{""type"":""PropertySet"",""propertySetItems"":[]}"

@@ -1,0 +1,9 @@
+DomainName($feature, "Catalog_GUID") //$feature (this remains the same all the time, pulls the guid), 
+    // "Catalog_GUID" the alias for the domain that I'm interested in
+
+
+//add personal att rule:
+var dn = DomainName($feature, "Catalog_GUID") //$feature
+var FID = $feature.Feat_ID
+
+return dn + "/" + FID

@@ -1,0 +1,45 @@
+import os
+import zipfile
+from openpyxl import Workbook
+
+def extract_zip_to_dict(zip_file):
+    file_dict = {}
+    with zipfile.ZipFile(zip_file, 'r') as zip_ref:
+        for file_name in zip_ref.namelist():
+            with zip_ref.open(file_name) as file:
+                file_dict[file_name] = file.read()
+    return file_dict
+
+def create_xlsx_from_zip_contents(directory):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Zipped Contents"
+
+    # Get a list of all zip files in the directory
+    zip_files = [file for file in os.listdir(directory) if file.endswith(".zip")]
+
+    row = 1
+    col = 2
+
+    for zip_file in zip_files:
+        file_dict = extract_zip_to_dict(os.path.join(directory, zip_file))
+        folder_name = os.path.splitext(zip_file)[0]
+
+        # Write folder name in the cell A1 and shift the content cells accordingly
+        ws.cell(row=row, column=1, value=folder_name)
+        row += 1
+
+        for file_name, file_content in file_dict.items():
+            ws.cell(row=row, column=col, value=file_name)
+            ws.cell(row=row + 1, column=col, value=file_content.decode('utf-8'))
+            row += 2
+
+        col += 1
+
+    output_file = os.path.join(directory, "zipped_contents.xlsx")
+    wb.save(output_file)
+    print(f"Excel file with zipped contents saved as '{output_file}'")
+
+if __name__ == "__main__":
+    directory_path = "X:\Customers\23 V1Fiber\23.065.001 V1 Corning Lima - Google Drive Backup"  # Replace with the path to your directory containing the zip files
+    create_xlsx_from_zip_contents(directory_path)

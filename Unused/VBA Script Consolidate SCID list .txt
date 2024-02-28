@@ -1,0 +1,37 @@
+' Script purpose: take all SCID data output from catapult and merge it into one consolidated sheet.
+' Setup: Add sheet to beginning of workbook and rename it "Consolidated"
+
+Sub RemoveEmptyRows()
+    Dim destWs As Worksheet
+    Dim lastRow As Long
+    Dim destLastRow As Long
+    Dim destLastCol As Long
+    Dim row As Long
+    Dim col As Long
+    Dim isEmptyRow As Boolean
+   
+    ' Set the destination sheet where data is consolidated
+    Set destWs = ThisWorkbook.Sheets("Consolidated")
+   
+    ' Find the last row and column in the destination sheet
+    destLastRow = destWs.Cells(destWs.Rows.Count, 1).End(xlUp).row
+    destLastCol = 16 ' Column P (since A:P)
+   
+    ' Loop through each row in reverse order
+    For row = destLastRow To 1 Step -1
+        isEmptyRow = True
+       
+        ' Check if the row contains data in columns A:P
+        For col = 1 To destLastCol
+            If destWs.Cells(row, col).Value <> "" Then
+                isEmptyRow = False
+                Exit For
+            End If
+        Next col
+       
+        ' If the row is empty, delete it
+        If isEmptyRow Then
+            destWs.Rows(row).Delete
+        End If
+    Next row
+End Sub
